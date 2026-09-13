@@ -24,9 +24,17 @@ Read docs/PLAN.md first. Build the step you are asked for, nothing beyond it.
 - All logic in `benchlib/`. `tools/bench.py` and `app/pages/*` only call it.
 - Generation is deterministic: seed from the YAML, no wall-clock or unseeded
   randomness anywhere in `benchlib/gen.py`.
-- LLM calls live only in `benchlib/llm.py`, use model `claude-opus-5`, and
-  every LLM output is validated by code before it is written to disk.
-- Small functions, type hints, no clever metaprogramming. A unit test for every
+- Engine-specific SQL and loading live only in `benchlib/dialects/`. Nothing
+  outside it writes DDL or COPY statements. Phase 1 has `postgres.py` only.
+- LLM calls live only in `benchlib/llm/`, behind the `LLMProvider` interface
+  (Anthropic `claude-opus-5` by default, Ollama as the alternative). Every LLM
+  output is validated by code before it is written to disk.
+- Database and LLM targets are profiles in `bench.toml`, selected with
+  `BENCH_DB` / `BENCH_LLM` or `--db` / `--llm`. Never hard-code a host, port,
+  model name or API URL.
+- Small functions, type hints, no clever metaprogramming, no hidden state.
+  `--verbose` prints every SQL statement; LLM requests and responses are
+  logged to `logs/llm/`. A unit test for every
   parser, emitter and generator.
 
 ## Workflow
