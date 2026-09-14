@@ -42,7 +42,8 @@ provider = "ollama"
 base_url = "http://127.0.0.1:11434"
 model = "llama3.1:8b"
 
-[llm.anthropic]
+[llm.anthropic]              # needs: .venv/bin/pip install anthropic
 provider = "anthropic"
 model = "claude-opus-5"
 api_key_env = "ANTHROPIC_API_KEY"
+fallbacks = "default"         # server-side refusal fallback (beta header server-side-fallback-2026-07-01)

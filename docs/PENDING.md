@@ -37,3 +37,16 @@ state). Please do one manual pass: `.venv/bin/streamlit run app/Home.py
 --server.address 127.0.0.1`, tunnel port 8501, open Model, add a table, add a
 column row and a relation row in the editors, Save YAML, Render, then
 `./bench rebuild --no-generate`. Revert with `git checkout model/mybank.yaml build/`.
+
+### 6. P4 details to confirm with a real provider
+- The `[llm.anthropic]` profile has `fallbacks = "default"` (server-side refusal
+  fallback, beta header `server-side-fallback-2026-07-01`). Remove the line if
+  you do not want declined requests re-run on another model.
+- `anthropic` is not installed (optional extra): `.venv/bin/pip install anthropic`.
+- Nullable columns are sent as JSON schema `"type": ["string", "null"]`.
+  OpenAI strict mode, Ollama and Anthropic structured outputs should accept
+  this; if one rejects the schema, the openai_compat provider falls back to a
+  prompt-only request on HTTP 400/422, the others report the error.
+- Sample validation checks columns, types, lengths, NOT NULL, primary key
+  uniqueness and parent keys. CHECK constraints are only enforced by the
+  database, so a row violating a CHECK is saved and then fails the rebuild.

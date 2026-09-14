@@ -150,3 +150,41 @@ so the starter model stays as committed in v001.
 First attempt note: injecting editor state in one rerun and clicking Save in a
 later rerun saved only the new table, because AppTest does not resend state
 for widgets it does not model. A browser resends it; see PENDING item 5.
+
+## P4 Samples and LLM (2026-09-14)
+
+No real LLM is reachable (no .env, no Ollama), see PENDING item 1. The
+acceptance commands were run through the real CLI against a local stub
+OpenAI-compatible endpoint (scripted replies, `[llm.stub]` profile added to
+bench.toml for the run and removed afterwards; the stub rows were deleted).
+
+```
+$ ./bench samples fill CUST_MSTR "3 customers, one with a NULL segment" -n 3
+bench samples fill: LLM profile none has no provider; choose one with --llm or BENCH_LLM
+exit=1
+
+$ ./bench --llm stub samples fill CUST_MSTR "3 customers, one with a NULL segment" -n 3
+appended 3 of 3 rows to model/samples/CUST_MSTR.csv:
+CUST_ID | CUST_NM                 | SEG_CD | OPEN_DT    | STAT_CD
+--------+-------------------------+--------+------------+--------
+900001  | Nordlicht Logistik GmbH | SM     | 2019-04-12 | A
+900002  | Anna Weber              | NULL   | 2021-11-03 | A
+900003  | Stadtwerke Kiel         | PS     | 2016-01-20 | C
+exit=0
+
+$ ./bench --llm stub samples fill CUST_MSTR "1 customer in segment ZZ" -n 1
+appended 0 of 1 rows to model/samples/CUST_MSTR.csv
+rejected row 1: {"CUST_ID": 900004, "CUST_NM": "Zeta Holdings", "SEG_CD": "ZZ", "OPEN_DT": "2022-02-02", "STAT_CD": "A"}
+  - SEG_CD: 'ZZ' does not exist in SEG_LKP.SEG_CD (existing values include: CO, PB, PS, RE, SM)
+exit=1
+(model/samples/CUST_MSTR.csv unchanged)
+
+$ ./bench rebuild --no-generate
+CUST_MSTR    | 0 data rows | 3 sample rows | 3 rows in db   ... 20 rows, model version 1
+$ ./bench sql "select cust_id, cust_nm, seg_cd, stat_cd from cust_mstr order by cust_id"
+900001 | Nordlicht Logistik GmbH | SM | A
+900002 | Anna Weber              | NULL | A
+900003 | Stadtwerke Kiel         | PS | C
+
+logs/llm: 2 files, each with request (url, body incl. response_format) and raw response.
+```

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import subprocess
 import sys
 from collections.abc import Callable
@@ -14,15 +15,16 @@ if sys.version_info < (3, 12):
 
 import psycopg
 
-from benchlib import build, importer, sqlrun, versioning
+from benchlib import build, importer, samples, sqlrun, versioning
 from benchlib.build import BuildError
 from benchlib.config import Config, ConfigError, load_config
 from benchlib.dialects import get_dialect
+from benchlib.llm.base import LLMError, get_provider
 from benchlib.model import ModelError, load_model
+from benchlib.samples import SamplesError
 
 # Commands that are still stubs, with the PLAN step that implements them.
 PLANNED_STEP = {
-    "samples fill": "P4",
     "gen": "P5",
     "check": "P6",
 }
@@ -49,9 +51,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("status", help="compare current files with the last build (exit 1 when STALE)")
 
-    samples = commands.add_parser("samples", help="hand-crafted sample rows")
-    samples_commands = samples.add_subparsers(dest="samples_command", required=True)
-    fill = samples_commands.add_parser("fill", help="ask the LLM for sample rows")
+    samples_parser = commands.add_parser("samples", help="hand-crafted sample rows")
+    samples_commands = samples_parser.add_subparsers(dest="samples_command", required=True)
+    fill = samples_commands.add_parser("fill", help="ask the LLM for sample rows (exit 1 unless all -n rows were appended)")
     fill.add_argument("table")
     fill.add_argument("instruction")
     fill.add_argument("-n", type=int, default=5, help="number of rows (default 5)")
@@ -140,6 +142,29 @@ def run_sql(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def run_samples_fill(config: Config, args: argparse.Namespace) -> int:
+    provider = get_provider(config.llm, config.paths.llm_logs)
+    if provider is None:
+        raise SamplesError(f"LLM profile {config.llm.name} has no provider; choose one with --llm or BENCH_LLM")
+    model = load_model(config.paths.model)
+    result = samples.fill_samples(config.paths, model, args.table, args.instruction, args.n, provider)
+    if result.appended:
+        names = list(result.appended[0])
+        print(f"appended {len(result.appended)} of {result.requested} rows to {display(config, result.path)}:")
+        print(sqlrun.format_table(names, [tuple(row[name] for name in names) for row in result.appended]))
+    else:
+        print(f"appended 0 of {result.requested} rows to {display(config, result.path)}")
+    for rejected in result.rejected:
+        print(f"rejected row {rejected.number}: {json.dumps(rejected.row, ensure_ascii=False, default=str)}")
+        for problem in rejected.problems:
+            print(f"  - {problem}")
+    if result.extra_valid_rows:
+        print(f"note: {result.extra_valid_rows} more valid rows than requested were not appended")
+    if result.dropped_columns:
+        print(f"note: the file has no column for {', '.join(result.dropped_columns)}; those values were not stored")
+    return 0 if len(result.appended) == result.requested else 1
+
+
 HANDLERS: dict[str, Callable[[Config, argparse.Namespace], int]] = {
     "status": run_status,
     "model import": run_model_import,
@@ -147,6 +172,7 @@ HANDLERS: dict[str, Callable[[Config, argparse.Namespace], int]] = {
     "model commit": run_model_commit,
     "rebuild": run_rebuild,
     "sql": run_sql,
+    "samples fill": run_samples_fill,
 }
 
 
@@ -168,6 +194,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"bench {key}: {exc}", file=sys.stderr)
         for line in getattr(exc, "errors", None) or getattr(exc, "details", None) or []:
             print(f"  - {line}", file=sys.stderr)
+        return 1
+    except (SamplesError, LLMError) as exc:
+        print(f"bench {key}: {exc}", file=sys.stderr)
         return 1
     except psycopg.Error as exc:
         print(f"bench {key}: database error: {str(exc).strip()}", file=sys.stderr)
