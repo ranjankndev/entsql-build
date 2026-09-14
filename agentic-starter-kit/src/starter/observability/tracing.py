@@ -196,6 +196,10 @@ def get_tracer(settings: Settings | None = None, trace_id: str | None = None) ->
     s = settings or get_settings()
     if s.observability_provider == "langfuse":
         return LangfuseTracer(s, trace_id)
+    if s.observability_provider == "otel":
+        from starter.observability.otel import OTelTracer
+
+        return OTelTracer(s, trace_id)
     return NoOpTracer(trace_id)
 
 

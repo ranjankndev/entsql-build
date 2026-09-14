@@ -41,10 +41,13 @@ class Settings(BaseSettings):
     llm_breaker_reset_seconds: float = 30.0
 
     # Observability
-    observability_provider: Literal["none", "langfuse"] = "none"
+    observability_provider: Literal["none", "langfuse", "otel"] = "none"
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_host: str = "https://cloud.langfuse.com"
+    otel_service_name: str = "starter-agent"
+    otel_exporter_endpoint: str | None = None  # OTLP/HTTP, e.g. http://collector:4318/v1/traces
+    otel_console: bool = False  # print spans locally when no collector is configured
 
     # Memory
     memory_backend: Literal["in_memory", "file", "cosmos", "vector"] = "in_memory"

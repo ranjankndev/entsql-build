@@ -19,6 +19,10 @@ dependencies = [
 [project.optional-dependencies]
 azure = ["azure-identity>=1.17", "azure-cosmos>=4.7", "azure-keyvault-secrets>=4.8"]
 anthropic = ["langchain-anthropic>=0.2"]
+otel = [
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp-proto-http>=1.27",
+]
 dev = ["pytest>=8.2", "pytest-asyncio>=0.23", "ruff>=0.6", "mypy>=1.11"]
 
 [project.scripts]
