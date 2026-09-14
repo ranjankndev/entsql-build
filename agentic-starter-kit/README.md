@@ -72,6 +72,7 @@ cp .env.example .env
 | **Evaluation** | `src/starter/evals/`, `evals/` | Dataset → run → score → report → **diff vs. baseline** → CI gate. Deterministic, statistical and LLM-judge scorers, plus a regression suite keyed to real incidents. |
 | **Context memory** | `src/starter/memory/` | Working / short-term / long-term layers, rolling summarisation, and hybrid (vector + lexical) retrieval over in-memory, file, Cosmos DB or Azure AI Search backends. |
 | **Observability** | `src/starter/observability/` | One `Tracer` interface; Langfuse or structured JSON logs. Eval scores attach to the same trace. |
+| **Multi-agent** | `src/starter/agent/team.py` | Supervisor + workers on one shared trace, bounded fan-out, deterministic routing fallback — with the case for *not* using it. |
 | **Agent loop** | `src/starter/agent/` | Bounded think→act→reflect loop, in plain Python *and* as a LangGraph graph sharing the same nodes. Streams progress events; the answer is only emitted after the output guards pass. |
 | **Tools** | `src/starter/tools/` | Typed tools with a `risk` level and an approval gate. Placeholder tools included. |
 | **LLM seam** | `src/starter/llm/` | `echo`, OpenAI, Azure OpenAI, Anthropic behind one interface, with retry/backoff, `Retry-After` and a circuit breaker. |
@@ -148,6 +149,7 @@ assert report.pass_rate >= 0.9
 | [`docs/memory.md`](docs/memory.md) | The three layers, summarisation, backends, retention |
 | [`docs/observability.md`](docs/observability.md) | Traces, spans, scores, the metrics worth alerting on |
 | [`docs/limits.md`](docs/limits.md) | Rate limits, quotas, identity, and the multi-replica caveat |
+| [`docs/multi-agent.md`](docs/multi-agent.md) | When a team beats one agent (rarely), the supervisor shape, bounds and failure behaviour |
 | [`docs/architecture.md`](docs/architecture.md) | Node-by-node walkthrough, LangGraph vs. plain loop, extension points |
 | [`deploy/azure/README.md`](deploy/azure/README.md) | The complete Azure deployment guide |
 | [`evals/README.md`](evals/README.md) | The bundled suites and what each one protects |

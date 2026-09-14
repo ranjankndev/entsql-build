@@ -114,7 +114,7 @@ Two mechanisms, use either or both:
 | swap the tracer | implement `Tracer`, return it from `get_tracer` |
 | swap memory storage | implement `MemoryStore` |
 | add a planning step | new node in `nodes.py`, wired into both drivers |
-| multi-agent | give each agent its own `AgentDeps` and compose them in a parent graph; keep one tracer so they share a trace |
+| multi-agent | `agent/team.py` — `Supervisor` + `Worker`, one shared tracer; read [`docs/multi-agent.md`](multi-agent.md) first, because one agent with more tools usually wins |
 
 ## What is deliberately not here
 

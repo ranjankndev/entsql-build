@@ -188,6 +188,29 @@ edge in `graph.build_graph`. Keep both in sync; the tests compare behaviour.
 
 ---
 
+## 5b. Multi-agent — `src/starter/agent/team.py`
+
+**What** `Supervisor` routes a query to `Worker`s (each a normal `Agent`),
+bounds fan-out with `max_workers`, synthesises one answer, and puts the whole
+team on **one trace**. Routing asks the model and falls back to deterministic
+keyword scoring, so it runs offline.
+
+**Standalone**
+
+```python
+from starter.agent.team import Supervisor, Worker
+
+team = Supervisor(deps=supervisor_agent.deps, max_workers=2, workers=[
+    Worker("billing", "Refunds, invoices and charges.", billing_agent),
+    Worker("technical", "Errors, outages and API problems.", technical_agent),
+])
+state = team.run("I was double charged")   # state.as_state() scores in the eval harness
+```
+
+**Before you use it** — read [`docs/multi-agent.md`](multi-agent.md). One agent
+with more tools is cheaper and easier to evaluate; a team earns its cost only
+when workers differ in permissions, model, prompt/tools or ownership.
+
 ## 6. Tools — `src/starter/tools/`
 
 **What** `Tool` = name + JSON schema + callable + `risk` + `requires_approval`.
