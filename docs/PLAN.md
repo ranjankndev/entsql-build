@@ -36,7 +36,7 @@ anywhere in the code.
 text2sql-benchmark/
 ├── CLAUDE.md
 ├── docs/PLAN.md                 # this file
-├── bench.toml                   # DSNs, paths, seed
+├── bench.toml                   # db and llm profiles, paths (the seed lives in the model YAML)
 ├── docker/init/01-roles.sql     # run once by the human; README.md explains the external container
 ├── model/
 │   ├── mybank.yaml              # SOURCE OF TRUTH for the schema
@@ -115,7 +115,7 @@ Rules:
 | `model import <file.sql>` | Parse DDL with `pglast` into `model/mybank.yaml` (tables, columns, PK, declared FKs as `declared: true` relations). One-time bootstrap. |
 | `model render` | Validate YAML; write `build/mybank.sql` and `build/mybank.svg`. Exit non-zero on validation errors (unknown ref, duplicate column, relation column missing). |
 | `model commit -m "msg"` | `render`, bump `version`, copy YAML and SQL to `versions/`, append CHANGELOG line with added/removed tables and columns vs previous version, `git commit`. |
-| `rebuild [--no-generate]` | Run `gen` unless disabled, then ONE transaction: `DROP SCHEMA mybank CASCADE; CREATE SCHEMA; run build/mybank.sql; run model/extra.sql; COPY data/*.csv in generation order; upsert model/samples/*.csv on PK; run checks/generated/structural.sql (each statement must return 0 rows); COMMIT`. On any error roll back. Write `build/.build.json` (hashes of yaml, extra.sql, samples, data, timestamp, row counts). `lock_timeout` 10s; terminate other `bench_owner` sessions first. |
+| `rebuild [--no-generate]` | Run `gen` unless disabled, then ONE transaction: `DROP SCHEMA mybank CASCADE; CREATE SCHEMA; GRANT USAGE ON SCHEMA mybank TO bench_read; run build/mybank.sql; run model/extra.sql; COPY data/*.csv in generation order; upsert model/samples/*.csv on PK; run checks/generated/structural.sql (each statement must return 0 rows); COMMIT`. On any error roll back. Write `build/.build.json` (hashes of yaml, extra.sql, samples, data, timestamp, row counts). `lock_timeout` 10s; terminate other `bench_owner` sessions first. |
 | `status` | Compare current file hashes with `.build.json`; print OK or STALE with changed files. |
 | `samples fill <TABLE> "<instruction>" [-n 5]` | Call LLM with table definition, relations, existing sample rows, up to 20 parent key values per ref, and the instruction; receive rows as structured JSON; validate columns, types, PK uniqueness, ref existence; append to `model/samples/<TABLE>.csv`. |
 | `gen [TABLE ...]` | Deterministic generation from `generation` specs, seed from YAML, parents first, writes `data/<TABLE>.csv`. Prints row counts and time. |
