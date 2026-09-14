@@ -20,7 +20,7 @@ regression runner, SQLite export, VPS deployment, LLM plausibility review.
 |---|---|
 | OS | Linux VPS (netcup, Ubuntu). Claude Code, the CLI and the Streamlit app all run on the VPS as user `deploy`, from `~/entsql-build`. The Windows laptop is a browser, VS Code Remote-SSH and DBeaver over SSH tunnels. |
 | Database | PostgreSQL 18.4 in the existing container `app_postgres` (`~/stacks/postgres`, managed by the human, outside this repo), port bound to `127.0.0.1:5432`. This project uses its own database `benchdata` and roles `bench_owner`, `bench_read`, created once by the human with `docker exec -i app_postgres psql -U postgres < docker/init/01-roles.sql`. Project code always connects over TCP as `bench_owner` or `bench_read`; it never starts, stops or execs into the container, even though the `deploy` user could. |
-| Python | 3.12 in a venv inside WSL2. Packages: `psycopg[binary]`, `pyyaml`, `pglast`, `graphviz`, `faker`, `streamlit`, `anthropic`, `pandas`. System package: `graphviz` (`apt install graphviz`). |
+| Python | 3.12 or newer (Debian 13 ships 3.13) in a venv. Packages: `psycopg[binary]`, `pyyaml`, `pglast`, `graphviz`, `faker`, `streamlit`, `anthropic`, `pandas`. System package: `graphviz` (`apt install graphviz`). |
 | Editors | VS Code with Remote-WSL, Claude Code in the integrated terminal. DBeaver on Windows connects to `localhost:5432`. |
 | LLM | Optional. Pluggable provider (section 8): any OpenAI-compatible endpoint (OpenRouter, DeepSeek, Groq, Mistral, vLLM, llama.cpp, Ollama), local Ollama native API, or Anthropic. Keys live in `.env`, never in the shell profile. With no `[llm.*]` profile configured the app runs; LLM buttons are simply disabled. |
 
