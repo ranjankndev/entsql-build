@@ -14,7 +14,9 @@ Read docs/PLAN.md first. Build the step you are asked for, nothing beyond it.
 - Connect only with psycopg or `psql -h 127.0.0.1` as `bench_owner`
   (read-only checks and the SQL page use `bench_read`). Password from `~/.pgpass`.
 - Never run `docker exec`, `docker compose exec` or any docker command from
-  code or scripts. Docker is started by the human.
+  code, scripts, or your own shell commands, even though the `deploy` user
+  is able to. Container administration (creating roles, tuning, backups) is
+  done by the human. If a task seems to need superuser access, stop and say so.
 - Rebuild is one transaction: it either completes or leaves the previous
   schema untouched.
 
