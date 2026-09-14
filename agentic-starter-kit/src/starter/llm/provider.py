@@ -8,6 +8,7 @@ API, evals, tests — runs with no credentials at all.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
@@ -31,6 +32,34 @@ class LLMProvider(Protocol):
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse: ...
+
+
+@runtime_checkable
+class StreamingLLMProvider(LLMProvider, Protocol):
+    """Optional capability: yield text deltas, then the assembled response.
+
+    A provider that cannot stream simply does not implement this; callers use
+    `stream_or_complete`, which degrades to one `complete` call.
+    """
+
+    def stream(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> Iterator[str | LLMResponse]: ...
+
+
+def stream_or_complete(
+    provider: LLMProvider,
+    messages: list[dict[str, str]],
+    tools: list[dict[str, Any]] | None = None,
+) -> Iterator[str | LLMResponse]:
+    """Yield `str` deltas (zero or more), then exactly one `LLMResponse`."""
+    stream = getattr(provider, "stream", None)
+    if callable(stream):
+        yield from stream(messages, tools)
+        return
+    yield provider.complete(messages, tools)
 
 
 class EchoProvider:
@@ -57,6 +86,16 @@ class EchoProvider:
         )
         return LLMResponse(text=f"[echo] {last_user.strip()}"[:2000], usage={"total_tokens": 0})
 
+    def stream(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> Iterator[str | LLMResponse]:
+        response = self.complete(messages, tools)
+        for word in response.text.split(" "):
+            yield f"{word} " if word else " "
+        yield response
+
 
 class LangChainProvider:
     """Adapter over any `langchain_core` chat model, including tool calling."""
@@ -80,6 +119,30 @@ class LangChainProvider:
         text = content if isinstance(content, str) else json.dumps(content)
         usage = getattr(result, "usage_metadata", None) or {}
         return LLMResponse(text=text, tool_calls=calls, raw=result, usage=dict(usage))
+
+    def stream(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> Iterator[str | LLMResponse]:
+        model = self._model.bind_tools(tools) if tools else self._model
+        final: Any = None
+        for chunk in model.stream(messages):
+            final = chunk if final is None else final + chunk
+            content = getattr(chunk, "content", "")
+            if isinstance(content, str) and content:
+                yield content
+        if final is None:
+            yield LLMResponse(text="")
+            return
+        calls = [
+            {"name": c["name"], "args": c["args"], "id": c.get("id", "")}
+            for c in (getattr(final, "tool_calls", None) or [])
+        ]
+        content = final.content
+        text = content if isinstance(content, str) else json.dumps(content)
+        usage = getattr(final, "usage_metadata", None) or {}
+        yield LLMResponse(text=text, tool_calls=calls, raw=final, usage=dict(usage))
 
 
 def get_llm(settings: Settings | None = None) -> LLMProvider:

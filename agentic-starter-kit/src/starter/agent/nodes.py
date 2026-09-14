@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
 from starter.agent.prompts import REFLECTION_PROMPT, system_prompt
 from starter.agent.state import AgentState
 from starter.guardrails import GuardContext, GuardrailPipeline, Stage
-from starter.llm import LLMProvider
+from starter.llm import LLMProvider, LLMResponse, stream_or_complete
 from starter.memory import ContextMemory
 from starter.observability import Tracer
 from starter.settings import Settings
@@ -98,6 +99,12 @@ def think(state: AgentState, deps: AgentDeps) -> AgentState:
             usage=response.usage,
         )
 
+    _apply_response(state, response)
+    return state
+
+
+def _apply_response(state: AgentState, response: LLMResponse) -> AgentState:
+    """Fold one model response into the state: tool calls, or a final answer."""
     usage = state.setdefault("usage", {})
     for key, value in (response.usage or {}).items():
         if isinstance(value, int):
@@ -119,6 +126,29 @@ def think(state: AgentState, deps: AgentDeps) -> AgentState:
         state["done"] = True
         state["stop_reason"] = "answered"
     return state
+
+
+def think_streaming(state: AgentState, deps: AgentDeps) -> Iterator[str]:
+    """`think`, yielding text deltas as the model produces them.
+
+    Falls back to one blocking call when the provider cannot stream, so callers
+    never need to ask which provider they have.
+    """
+    with deps.tracer.span("llm.think", kind="generation", input=state["messages"][-1]) as span:
+        response: LLMResponse | None = None
+        for chunk in stream_or_complete(deps.llm, state["messages"], deps.tools.schemas()):
+            if isinstance(chunk, LLMResponse):
+                response = chunk
+            else:
+                yield chunk
+        if response is None:
+            response = LLMResponse(text="")
+        span.end(
+            output=response.text[:500],
+            tool_calls=[c["name"] for c in response.tool_calls],
+            usage=response.usage,
+        )
+    _apply_response(state, response)
 
 
 def act(state: AgentState, deps: AgentDeps) -> AgentState:

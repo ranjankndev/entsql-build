@@ -53,6 +53,45 @@ If you add a node, add it to `loop._drive` **and** `graph.build_graph`. The
 node itself stays framework-free — that is the point of the seam, and it is
 what makes porting to another orchestrator a day's work rather than a rewrite.
 
+## Streaming
+
+`Agent.stream(query, ...)` is the **only** driver; `Agent.run` drains it. A
+blocking caller and a streaming caller therefore cannot drift apart — the test
+`test_stream_and_run_agree` pins that.
+
+Events (`agent/events.py`), delivered over SSE by `POST /chat/stream`:
+
+| Event | When | Notes |
+| --- | --- | --- |
+| `status` | stage change | `guard_input`, `load_context`, `thinking`, `budget_exhausted`, `guard_output`, `awaiting_approval` |
+| `guardrail` | a guard warns or blocks | passing no-op guards are not narrated |
+| `tool` | per call | `phase: start` with args, `phase: end` with `ok` |
+| `token` | draft text delta | **only** when `AGENT_STREAM_TOKENS=true`; always `provisional: true` |
+| `answer` | after `guard_output` | the text the guardrails actually approved |
+| `error` | provider or node failure | followed by an `answer` and a `done` |
+| `done` | always last | thread id, trace id, stop reason, counters, citations |
+
+### Why tokens are off by default
+
+Output guardrails cannot unsend a token. Streaming raw model output means PII,
+a leaked secret or an unsafe answer reaches the user *before* any guard sees
+it. So the default streams progress, not prose, and emits the answer once —
+after `guard_output`.
+
+Turn tokens on when latency perception matters more than the output guards
+(internal tools, low-risk domains), and make the client replace all `token`
+text with the final `answer` text. The kit marks every token `provisional` so
+that contract is impossible to miss.
+
+```bash
+curl -N -X POST localhost:8000/chat/stream \
+  -H 'content-type: application/json' -d '{"query":"what is the sla?"}'
+```
+
+```bash
+starter chat "what is the sla?" --stream    # events on stderr, answer on stdout
+```
+
 ## Human-in-the-loop
 
 Two mechanisms, use either or both:

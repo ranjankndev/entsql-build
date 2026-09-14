@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from starter import __version__
@@ -77,6 +78,26 @@ def chat(request: ChatRequest) -> ChatResponse:
         iterations=state.get("iteration", 0),
         tool_calls=state.get("tool_calls_made", 0),
         citations=state.get("citations", []),
+    )
+
+
+@app.post("/chat/stream")
+def chat_stream(request: ChatRequest) -> StreamingResponse:
+    """Server-sent events: `status`, `tool`, `guardrail`, `token`, `answer`, `done`.
+
+    `token` events are provisional drafts and are only emitted when
+    `AGENT_STREAM_TOKENS=true`; clients must render the final `answer` event's
+    text, which is what the output guardrails actually approved.
+    """
+
+    def frames() -> Any:
+        for event in agent().stream(request.query, request.thread_id, request.user_id):
+            yield event.to_sse()
+
+    return StreamingResponse(
+        frames(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

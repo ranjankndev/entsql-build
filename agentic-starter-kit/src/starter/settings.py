@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     agent_max_iterations: int = 8
     agent_wall_clock_seconds: float = 120.0
     agent_max_tool_calls: int = 16
+    # Stream draft tokens to the client. Off by default: tokens sent before
+    # `guard_output` runs cannot be unsent. See `agent/events.py`.
+    agent_stream_tokens: bool = False
 
     # Service
     app_env: str = "local"

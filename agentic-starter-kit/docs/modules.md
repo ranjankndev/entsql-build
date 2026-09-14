@@ -138,8 +138,8 @@ Weave, or LangSmith; nothing else changes.
 `loop.py` drives them with a plain `while` and hard budgets. `graph.py` wires
 *the same functions* into LangGraph for checkpointing, streaming and interrupts.
 
-**Surface** `build_agent`, `Agent.run`, `AgentDeps`, `AgentState`,
-`build_graph`, `run_graph`.
+**Surface** `build_agent`, `Agent.run`, `Agent.stream`, `AgentEvent`, `AgentDeps`,
+`AgentState`, `build_graph`, `run_graph`.
 
 **Standalone** — inject your own pieces:
 
@@ -185,7 +185,9 @@ usually `requires_approval=True`.
 
 ## 7. LLM seam — `src/starter/llm/`
 
-**What** One `complete(messages, tools) -> LLMResponse` call. Providers:
+**What** One `complete(messages, tools) -> LLMResponse` call, plus an optional
+`stream()` that yields text deltas then the assembled response;
+`stream_or_complete` degrades gracefully for providers without it. Providers:
 `echo` (offline, scriptable — the reason the test suite needs no keys),
 `openai`, `azure_openai`, `anthropic` (all via LangChain chat models).
 
@@ -197,7 +199,8 @@ tool-call sequences.
 
 ## 8. API — `src/starter/api/`
 
-`POST /chat`, `GET /healthz`, `GET /readyz`, `POST /guardrails/check`.
+`POST /chat`, `POST /chat/stream` (server-sent events), `GET /healthz`,
+`GET /readyz`, `POST /guardrails/check`.
 Thin by design: it constructs the agent once and translates state to JSON.
 The probes are what Container Apps uses for liveness/readiness.
 

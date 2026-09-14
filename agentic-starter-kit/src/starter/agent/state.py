@@ -42,6 +42,7 @@ class AgentState(TypedDict, total=False):
     approved_tools: list[str]
     error: str | None
     usage: dict[str, int]
+    events_emitted: int
 
 
 def new_state(query: str, thread_id: str | None = None, user_id: str | None = None) -> AgentState:
@@ -67,4 +68,5 @@ def new_state(query: str, thread_id: str | None = None, user_id: str | None = No
         approved_tools=[],
         error=None,
         usage={},
+        events_emitted=0,
     )

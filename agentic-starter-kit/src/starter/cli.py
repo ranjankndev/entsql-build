@@ -27,6 +27,19 @@ def cmd_chat(args: argparse.Namespace) -> int:
     from starter.agent import build_agent
 
     agent = build_agent(reflect_enabled=args.reflect)
+    if args.stream:
+        state = None
+        for event in agent.stream(args.query, thread_id=args.thread):
+            if event.type == "token":
+                print(event.data["text"], end="", flush=True)
+            elif event.type in {"status", "tool", "guardrail"}:
+                print(f"[{event.type}] {event.data}", file=sys.stderr)
+            elif event.type == "answer":
+                print(("\n" if args.stream else "") + event.data["text"])
+            elif event.type == "done":
+                state = event.data
+        print(f"\n— {state}")
+        return 0
     if args.graph:
         from starter.agent.graph import run_graph
 
@@ -105,6 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("query")
     chat.add_argument("--thread", default=None)
     chat.add_argument("--graph", action="store_true", help="run through LangGraph")
+    chat.add_argument("--stream", action="store_true", help="stream progress events")
     chat.add_argument("--reflect", action="store_true", help="enable the self-check node")
     chat.add_argument("--json", action="store_true")
     chat.set_defaults(func=cmd_chat)
