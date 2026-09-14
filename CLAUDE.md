@@ -21,7 +21,7 @@ Read docs/PLAN.md first. Build the step you are asked for, nothing beyond it.
   schema untouched.
 
 ## Code
-- Python 3.12, standard library plus: psycopg, pyyaml, pglast, graphviz, faker,
+- Python 3.12 or newer (use the system python3), standard library plus: psycopg, pyyaml, pglast, graphviz, faker,
   streamlit, pandas; `anthropic` only as an optional extra. Ask before adding anything else.
 - All logic in `benchlib/`. `tools/bench.py` and `app/pages/*` only call it.
 - Generation is deterministic: seed from the YAML, no wall-clock or unseeded
