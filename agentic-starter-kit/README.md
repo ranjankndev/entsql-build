@@ -77,6 +77,7 @@ cp .env.example .env
 | **Tools** | `src/starter/tools/` | Typed tools with a `risk` level and an approval gate. Placeholder tools included. |
 | **LLM seam** | `src/starter/llm/` | `echo`, OpenAI, Azure OpenAI, Anthropic behind one interface, with retry/backoff, `Retry-After` and a circuit breaker. |
 | **API** | `src/starter/api/` | FastAPI `/chat`, `/chat/stream` (SSE), `/healthz`, `/readyz`, `/guardrails/check`. |
+| **Scaffolding** | `src/starter/scaffold.py` | `starter init` — copy the kit into a new project and rename the package mechanically. |
 | **Limits** | `src/starter/ratelimit.py` | Per-identity token bucket plus daily request and token quotas, with 429s and `X-RateLimit-*` headers. |
 | **Azure deploy** | `deploy/azure/` | Bicep for Container Apps + Azure OpenAI + Cosmos + Key Vault + identity, plus a full [deployment guide](deploy/azure/README.md). |
 | **CI/CD** | `.github/workflows/` | Tests + eval gates per PR; OIDC deploy with blue/green and smoke tests. |
@@ -85,8 +86,20 @@ cp .env.example .env
 
 ## Using it as a template for a new project
 
-1. Copy the directory, rename the package (`src/starter` → your name).
-2. Replace the placeholder tools in `src/starter/tools/examples.py` with the
+```bash
+starter init ../supportbot --package supportbot --name support-bot
+cd ../supportbot && make install && make test
+```
+
+`init` copies the kit, renames `src/starter` → `src/supportbot`, rewrites every
+import, console script, Makefile and CI invocation, and skips local state
+(`.git`, `.venv`, `.env`, caches). It leaves English prose alone — "this starter
+kit" is a sentence, not an identifier — and tells you which files still mention
+the word so you can skim them. `--dry-run` shows what it would do.
+
+Then:
+
+1. Replace the placeholder tools in `src/starter/tools/examples.py` with the
    two or three tools your agent actually needs. Set `risk` honestly.
 3. Edit the system prompt in `src/starter/agent/prompts.py` — capability,
    boundaries, citation policy, refusal policy.

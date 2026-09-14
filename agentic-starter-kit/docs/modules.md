@@ -300,7 +300,25 @@ limits.record_usage(identity, tokens_used)    # charged to the next check
 Cosmos DB; the in-memory default is per replica. Details and the reasoning in
 [`docs/limits.md`](limits.md).
 
-## 10. Deployment — `deploy/azure/`
+## 10. Scaffolding — `src/starter/scaffold.py`
+
+**What** `starter init <target> --package <name>` copies the kit and renames the
+package everywhere it is an identifier: `src/starter/` → `src/<name>/`, imports,
+the console script, `pyproject` metadata, Makefile/Dockerfile/CI invocations.
+
+```bash
+starter init ../supportbot --package supportbot --name support-bot --dry-run
+```
+
+**Scope, stated honestly** It does not rewrite English prose — "this starter kit"
+is a sentence, not an identifier — and the summary lists the files that still
+mention the word so you can skim them.
+
+**Self-derived** `SOURCE_PACKAGE` comes from `__name__`, so a scaffolded project
+can itself scaffold another. The end-to-end test scaffolds a project and runs
+*its* suite in a subprocess; a guard env var stops that recursing forever.
+
+## 11. Deployment — `deploy/azure/`
 
 Bicep for Container Apps + Azure OpenAI + Cosmos DB + Key Vault + managed
 identity + Log Analytics, deploy scripts, and the full guide in

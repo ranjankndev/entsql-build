@@ -9,7 +9,7 @@ from contextlib import contextmanager
 import pytest
 
 from starter.agent import Agent
-from starter.observability.otel import OTelTracer, _attributes
+from starter.observability.otel import ATTR_NS, OTelTracer, _attributes
 from starter.observability.tracing import Span
 
 
@@ -67,7 +67,7 @@ def test_openai_style_usage_keys_map_too():
     attrs = _attributes(span, "openai", "gpt-4o-mini")
     assert attrs["gen_ai.usage.input_tokens"] == 5
     assert attrs["gen_ai.usage.output_tokens"] == 7
-    assert attrs["starter.usage.total_tokens"] == 12
+    assert attrs[f"{ATTR_NS}.usage.total_tokens"] == 12
 
 
 def test_tool_spans_carry_the_tool_name():
@@ -76,20 +76,20 @@ def test_tool_spans_carry_the_tool_name():
     attrs = _attributes(span, "echo", "m")
     assert attrs["gen_ai.operation.name"] == "execute_tool"
     assert attrs["gen_ai.tool.name"] == "search_kb"
-    assert attrs["starter.ok"] is True
+    assert attrs[f"{ATTR_NS}.ok"] is True
 
 
 def test_our_trace_id_travels_as_an_attribute():
     span = Span(name="agent.run", kind="span", trace_id="abc123")
     span.end()
-    assert _attributes(span, "echo", "m")["starter.trace_id"] == "abc123"
+    assert _attributes(span, "echo", "m")[f"{ATTR_NS}.trace_id"] == "abc123"
 
 
 def test_unserialisable_metadata_is_dropped_not_crashed():
     span = Span(name="x", kind="span")
     span.end(good="yes", bad={"nested": object()})
     attrs = _attributes(span, "echo", "m")
-    assert attrs["starter.good"] == "yes"
+    assert attrs[f"{ATTR_NS}.good"] == "yes"
     assert not any(k.endswith("bad") for k in attrs)
 
 
@@ -117,8 +117,8 @@ def test_scores_become_their_own_span_linked_by_trace_id(otel):
     tracer.score("trace-42", "groundedness", 0.9, "supported")
     span = fake.spans[-1]
     assert span.name == "eval.score"
-    assert span.attributes["starter.trace_id"] == "trace-42"
-    assert span.attributes["starter.score.value"] == 0.9
+    assert span.attributes[f"{ATTR_NS}.trace_id"] == "trace-42"
+    assert span.attributes[f"{ATTR_NS}.score.value"] == 0.9
 
 
 # ------------------------------------------------------- graceful degradation

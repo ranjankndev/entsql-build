@@ -29,6 +29,11 @@ from starter.settings import Settings, get_settings
 
 log = logging.getLogger("starter.trace")
 
+# Telemetry attribute namespace. Derived from the package name, so a project
+# scaffolded with `starter init --package supportbot` emits `supportbot.*`
+# attributes without anyone having to remember to rename string literals.
+ATTR_NS = __name__.split(".")[0]
+
 # Our span kinds -> the GenAI operation names OTel dashboards group by.
 OPERATION_NAMES: dict[str, str] = {
     "generation": "chat",
@@ -45,8 +50,8 @@ def _attributes(span: Span, provider: str, model: str) -> dict[str, Any]:
     """
     attributes: dict[str, Any] = {
         "gen_ai.operation.name": OPERATION_NAMES.get(span.kind, "workflow"),
-        "starter.span.kind": span.kind,
-        "starter.trace_id": span.trace_id,
+        f"{ATTR_NS}.span.kind": span.kind,
+        f"{ATTR_NS}.trace_id": span.trace_id,
     }
     if span.kind == "generation":
         attributes["gen_ai.system"] = provider
@@ -62,7 +67,7 @@ def _attributes(span: Span, provider: str, model: str) -> dict[str, Any]:
         ("prompt_tokens", "gen_ai.usage.input_tokens"),
         ("output_tokens", "gen_ai.usage.output_tokens"),
         ("completion_tokens", "gen_ai.usage.output_tokens"),
-        ("total_tokens", "starter.usage.total_tokens"),
+        ("total_tokens", f"{ATTR_NS}.usage.total_tokens"),
     ):
         if isinstance(usage.get(source), int):
             attributes[target] = usage[source]
@@ -71,9 +76,9 @@ def _attributes(span: Span, provider: str, model: str) -> dict[str, Any]:
         if key == "usage":
             continue
         if isinstance(value, (str, int, float, bool)):
-            attributes[f"starter.{key}"] = value
+            attributes[f"{ATTR_NS}.{key}"] = value
         elif isinstance(value, (list, tuple)) and all(isinstance(v, str) for v in value):
-            attributes[f"starter.{key}"] = list(value)
+            attributes[f"{ATTR_NS}.{key}"] = list(value)
     return attributes
 
 
@@ -123,7 +128,7 @@ class OTelTracer(NoOpTracer):
 
                 provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
             trace.set_tracer_provider(provider)
-            return trace.get_tracer("starter.agent")
+            return trace.get_tracer(f"{ATTR_NS}.agent")
         except Exception as exc:
             log.warning("opentelemetry unavailable, falling back to log tracer: %s", exc)
             return None
@@ -178,11 +183,11 @@ class OTelTracer(NoOpTracer):
             return
         try:
             with self._tracer.start_as_current_span("eval.score") as otel_span:
-                otel_span.set_attribute("starter.trace_id", trace_id)
-                otel_span.set_attribute("starter.score.name", name)
-                otel_span.set_attribute("starter.score.value", float(value))
+                otel_span.set_attribute(f"{ATTR_NS}.trace_id", trace_id)
+                otel_span.set_attribute(f"{ATTR_NS}.score.name", name)
+                otel_span.set_attribute(f"{ATTR_NS}.score.value", float(value))
                 if comment:
-                    otel_span.set_attribute("starter.score.comment", comment[:500])
+                    otel_span.set_attribute(f"{ATTR_NS}.score.comment", comment[:500])
         except Exception as exc:
             log.warning("otel score export failed: %s", exc)
 

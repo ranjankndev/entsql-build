@@ -39,6 +39,7 @@ where = ["src"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = ["slow: scaffolds a project and runs its suite in a subprocess"]
 
 [tool.ruff]
 line-length = 100

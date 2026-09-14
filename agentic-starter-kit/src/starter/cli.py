@@ -7,6 +7,7 @@
     starter eval-diff evals/baselines/core.json .eval-runs/<run>.json
     starter guard "text to test" --stage input
     starter serve --port 8000
+    starter init ../supportbot --package supportbot
 """
 
 from __future__ import annotations
@@ -133,6 +134,24 @@ def cmd_guard(args: argparse.Namespace) -> int:
     return 1 if outcome.blocked else 0
 
 
+def cmd_init(args: argparse.Namespace) -> int:
+    from starter.scaffold import ScaffoldError, init_project
+
+    try:
+        result = init_project(
+            target=args.target,
+            package=args.package,
+            project_name=args.name,
+            force=args.force,
+            dry_run=args.dry_run,
+        )
+    except ScaffoldError as exc:
+        print(f"cannot scaffold: {exc}", file=sys.stderr)
+        return 1
+    print(result.summary())
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -176,6 +195,14 @@ def build_parser() -> argparse.ArgumentParser:
     guard.add_argument("text")
     guard.add_argument("--stage", default="input", choices=["input", "tool", "output"])
     guard.set_defaults(func=cmd_guard)
+
+    init = sub.add_parser("init", help="scaffold a new project from this kit")
+    init.add_argument("target", help="directory to create")
+    init.add_argument("--package", required=True, help="python package name, e.g. supportbot")
+    init.add_argument("--name", help="project name for pyproject (defaults to the package)")
+    init.add_argument("--force", action="store_true", help="write into a non-empty directory")
+    init.add_argument("--dry-run", action="store_true")
+    init.set_defaults(func=cmd_init)
 
     serve = sub.add_parser("serve", help="run the HTTP API")
     serve.add_argument("--host", default="0.0.0.0")
