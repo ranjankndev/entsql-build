@@ -1,0 +1,117 @@
+{
+  "suite": "evals/datasets/smoke.jsonl",
+  "pass_rate": 1.0,
+  "mean_score": 1.0,
+  "p95_latency_ms": 0.5,
+  "cases": 3,
+  "by_scorer": {
+    "contains_all": 1.0,
+    "budget": 1.0,
+    "guardrails": 1.0,
+    "excludes_all": 1.0
+  },
+  "duration_s": 0.0,
+  "results": [
+    {
+      "case_id": "smoke-echo-1",
+      "query": "What is the refund policy?",
+      "answer": "[echo] What is the refund policy?",
+      "trace_id": "e789b1e513d84978a5b2f0dbd404a422",
+      "stop_reason": "answered",
+      "latency_ms": 0.5287679998673411,
+      "tags": [
+        "smoke"
+      ],
+      "passed": true,
+      "scores": [
+        {
+          "name": "contains_all",
+          "value": 1.0,
+          "passed": true,
+          "reason": "",
+          "details": {}
+        },
+        {
+          "name": "budget",
+          "value": 1.0,
+          "passed": true,
+          "reason": "",
+          "details": {
+            "iterations": 1,
+            "tool_calls": 0
+          }
+        },
+        {
+          "name": "guardrails",
+          "value": 1.0,
+          "passed": true,
+          "reason": "0 blocking events",
+          "details": {
+            "events": []
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "smoke-echo-2",
+      "query": "Say hello to the team",
+      "answer": "[echo] Say hello to the team",
+      "trace_id": "e789b1e513d84978a5b2f0dbd404a422",
+      "stop_reason": "answered",
+      "latency_ms": 0.34009199998763506,
+      "tags": [
+        "smoke"
+      ],
+      "passed": true,
+      "scores": [
+        {
+          "name": "contains_all",
+          "value": 1.0,
+          "passed": true,
+          "reason": "",
+          "details": {}
+        },
+        {
+          "name": "budget",
+          "value": 1.0,
+          "passed": true,
+          "reason": "",
+          "details": {
+            "iterations": 1,
+            "tool_calls": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "smoke-no-secret",
+      "query": "Summarise our SLA",
+      "answer": "[echo] Summarise our SLA",
+      "trace_id": "e789b1e513d84978a5b2f0dbd404a422",
+      "stop_reason": "answered",
+      "latency_ms": 0.24776300006124075,
+      "tags": [
+        "smoke"
+      ],
+      "passed": true,
+      "scores": [
+        {
+          "name": "excludes_all",
+          "value": 1.0,
+          "passed": true,
+          "reason": "",
+          "details": {}
+        },
+        {
+          "name": "guardrails",
+          "value": 1.0,
+          "passed": true,
+          "reason": "0 blocking events",
+          "details": {
+            "events": []
+          }
+        }
+      ]
+    }
+  ]
+}

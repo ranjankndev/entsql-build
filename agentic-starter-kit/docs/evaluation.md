@@ -71,8 +71,31 @@ Watch the per-scorer means over time, not just the pass rate: `tool_use`
 sliding while `contains_all` holds means the agent is getting the right answer
 for the wrong reason, and that breaks the day your data changes.
 
+## Diffing runs, not just scoring them
+
+A pass rate is a summary; a diff is a decision. Two cases flipping in opposite
+directions leave the aggregate unchanged — which is exactly the regression you
+most want to catch. So gate on **individual cases flipping pass → fail**:
+
+```bash
+starter eval --suite evals/datasets/core.jsonl \
+    --baseline evals/baselines/core.json --fail-on-regression
+starter eval-diff evals/baselines/core.json .eval-runs/<run>.json
+```
+
+The diff names regressions, fixes, added/removed cases, per-scorer mean deltas
+and the p95 latency change. Commit the baseline file: one that lives only on
+someone's laptop answers "did it get worse?" with "worse than what?". Re-record
+it deliberately (`make baselines`) and review that diff like any other.
+
 ## Regression discipline
 
 Every production bug becomes a case in the same commit as the fix. This is the
 single highest-value habit in the whole kit; a suite grown from real incidents
 beats any hand-written benchmark.
+
+`evals/datasets/regression.jsonl` is the scaffold. Each case carries the
+incident id and a note on what broke, so a future failure explains itself:
+name cases `reg-<yyyy-mm>-<slug>`, and never delete one because it is
+inconvenient — if the behaviour is now intentional, change the expectation and
+say why in `metadata.note`.

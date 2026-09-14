@@ -55,8 +55,8 @@ class ToxicityGuard:
 pass rate, per-scorer means, p95 latency, markdown + JSON output, and scores
 pushed to the tracer against the run's trace id.
 
-**Surface** `run_suite`, `load_cases`, `EvalCase`, `EvalReport`,
-`write_report`, `SCORERS`, `llm_judge`.
+**Surface** `run_suite`, `load_cases`, `EvalCase`, `EvalReport`, `write_report`,
+`SCORERS`, `llm_judge`, `compare`, `save_baseline`, `load_report`.
 
 **Standalone** — the harness only needs an object with
 `.run(query, thread_id=None, user_id=None)` returning a dict-like state with
@@ -67,6 +67,18 @@ from starter.evals import run_suite
 report = run_suite("cases.jsonl", agent=MyAgentAdapter())
 print(report.to_markdown())
 assert report.pass_rate >= 0.9
+```
+
+**Diffing** `compare(baseline, current)` returns regressions, fixes, added and
+removed cases, per-scorer deltas and the latency change — because two cases
+flipping in opposite directions leave the pass rate unchanged:
+
+```python
+from starter.evals import compare, load_report, run_suite, save_baseline
+
+report = run_suite("evals/datasets/core.jsonl")
+diff = compare(load_report("evals/baselines/core.json"), report.to_dict())
+assert diff.clean, diff.to_markdown()
 ```
 
 **Extend** — any callable `(case, state) -> Score` is a scorer; pass it in
