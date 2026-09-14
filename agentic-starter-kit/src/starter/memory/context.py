@@ -118,6 +118,10 @@ class ContextMemory:
 
 def build_store(settings: Settings | None = None) -> MemoryStore:
     s = settings or get_settings()
+    if s.memory_backend == "vector":
+        from starter.memory.vector import build_vector_store
+
+        return build_vector_store(s, inner=FileMemoryStore(s.memory_dir))
     if s.memory_backend == "file":
         return FileMemoryStore(s.memory_dir)
     if s.memory_backend == "cosmos":

@@ -47,13 +47,24 @@ class Settings(BaseSettings):
     langfuse_host: str = "https://cloud.langfuse.com"
 
     # Memory
-    memory_backend: Literal["in_memory", "file", "cosmos"] = "in_memory"
+    memory_backend: Literal["in_memory", "file", "cosmos", "vector"] = "in_memory"
     memory_dir: str = ".memory"
     cosmos_endpoint: str | None = None
     cosmos_database: str = "agentmem"
     cosmos_container: str = "threads"
     short_term_max_turns: int = 20
     summary_trigger_turns: int = 12
+
+    # Retrieval. `hashing` is offline and deterministic (bag-of-words, not real
+    # semantics) — swap it for a real model before claiming semantic recall.
+    embedding_provider: Literal["hashing", "openai", "azure_openai"] = "hashing"
+    embedding_model: str = "text-embedding-3-small"
+    embedding_deployment: str | None = None
+    embedding_dimensions: int = 256
+    # score = hybrid_alpha * cosine + (1 - hybrid_alpha) * lexical
+    hybrid_alpha: float = 0.7
+    search_endpoint: str | None = None
+    search_index: str = "agent-memory"
 
     # Guardrails
     guardrails_policy: str = "config/guardrails.yaml"

@@ -70,7 +70,7 @@ cp .env.example .env
 | --- | --- | --- |
 | **Guardrails** | `src/starter/guardrails/` | Input/tool/output policy: PII, injection, secrets, denied topics, tool allow-list, length. YAML-driven, shadow mode, pluggable. |
 | **Evaluation** | `src/starter/evals/`, `evals/` | Dataset → run → score → report → CI gate. Deterministic, statistical and LLM-judge scorers. |
-| **Context memory** | `src/starter/memory/` | Working / short-term / long-term layers, rolling summarisation, in-memory, file or Cosmos DB backends. |
+| **Context memory** | `src/starter/memory/` | Working / short-term / long-term layers, rolling summarisation, and hybrid (vector + lexical) retrieval over in-memory, file, Cosmos DB or Azure AI Search backends. |
 | **Observability** | `src/starter/observability/` | One `Tracer` interface; Langfuse or structured JSON logs. Eval scores attach to the same trace. |
 | **Agent loop** | `src/starter/agent/` | Bounded think→act→reflect loop, in plain Python *and* as a LangGraph graph sharing the same nodes. Streams progress events; the answer is only emitted after the output guards pass. |
 | **Tools** | `src/starter/tools/` | Typed tools with a `risk` level and an approval gate. Placeholder tools included. |

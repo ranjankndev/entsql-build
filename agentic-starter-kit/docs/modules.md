@@ -95,6 +95,17 @@ memory.remember_fact("user-42", "Prefers answers in metric units.", key="units")
 messages = memory.build_context("thread-1", "How far is it?", owner_id="user-42")
 ```
 
+**Vector / RAG** `VectorMemoryStore` decorates any store with hybrid retrieval
+(`alpha * cosine + (1 - alpha) * lexical`); `AzureAISearchStore` pushes the same
+query server-side. The embedder is its own seam (`hashing` offline by default,
+`openai`/`azure_openai` for real semantics).
+
+```python
+from starter.memory import HashingEmbedder, InMemoryStore, VectorMemoryStore
+
+store = VectorMemoryStore(inner=InMemoryStore(), embedder=HashingEmbedder(256), alpha=0.7)
+```
+
 **Extend** — implement the `MemoryStore` protocol for Redis, pgvector, Azure AI
 Search. Only `search_records` needs to change to move from lexical to vector
 retrieval; nothing above it does.

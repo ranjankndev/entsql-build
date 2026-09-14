@@ -53,10 +53,48 @@ store should either come from a tool result you trust or a rule you wrote.
 | `file` | `MEMORY_BACKEND=file` | single-process demo that survives restarts |
 | `cosmos` | `MEMORY_BACKEND=cosmos` | production; partitioned by thread/owner, managed-identity auth, TTL on turns |
 
-Retrieval is lexical (Jaccard overlap) out of the box — no infrastructure, and
-unit-testable. To move to vectors, implement `search_records` against Azure AI
-Search, pgvector or the Cosmos DB vector index. Nothing above the store
-changes.
+## Retrieval: lexical, vector, hybrid
+
+| `MEMORY_BACKEND` | `search_records` uses | Infrastructure |
+| --- | --- | --- |
+| `in_memory` / `file` / `cosmos` | Jaccard token overlap | none |
+| `vector` | hybrid: `alpha * cosine + (1 - alpha) * lexical` | none (in-process) |
+| `vector` + `SEARCH_ENDPOINT` | Azure AI Search hybrid query, server-side | an AI Search index |
+
+`VectorMemoryStore` **decorates** any store: turns and summaries pass straight
+through, only `search_records` changes. That is the entire RAG upgrade path —
+nothing above the store knows it happened.
+
+### Why hybrid, not pure vector
+
+Pure vector search misses the exact tokens users are most likely to quote —
+order ids, SKUs, error codes. Pure lexical search misses paraphrase.
+`HYBRID_ALPHA` weights the two; 0.7 is a sensible start, and `alpha=0`/`alpha=1`
+degenerate cleanly to lexical-only and vector-only if you want to measure each.
+
+### The embedder is a seam too
+
+`EMBEDDING_PROVIDER=hashing` is the default: deterministic, offline, no
+dependency, stable across processes (blake2b, not Python's salted `hash`) so a
+vector cached last week still compares correctly today. **It is a bag-of-words
+projection, not real semantics** — it exercises and tests the vector path, it
+does not deliver semantic recall. Switch to `openai` or `azure_openai` before
+claiming that.
+
+Records are embedded once at write time, so a query costs one embedding call.
+
+### Azure AI Search
+
+`AzureAISearchStore` keeps turns and summaries in the inner store (Cosmos DB in
+production — a search index is the wrong shape for an append-only transcript)
+and puts long-term records in an index with fields `id` (key), `owner_id`
+(filterable), `text`, `kind`, `ts` and `embedding`
+(`Collection(Edm.Single)`, vector-searchable). Auth is
+`DefaultAzureCredential`; grant the app's managed identity **Search Index Data
+Contributor**.
+
+To use pgvector or the Cosmos DB vector index instead, implement
+`search_records` the same way. Nothing above the store changes.
 
 ## Retention
 
