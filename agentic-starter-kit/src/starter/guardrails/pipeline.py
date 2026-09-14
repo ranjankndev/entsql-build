@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from starter.guardrails import builtin as _builtin  # noqa: F401  (registers built-ins)
+from starter.guardrails import judge as _judge  # noqa: F401  (registers model-based guards)
 from starter.guardrails.base import Guard, GuardContext, GuardResult, Severity, Stage
 from starter.guardrails.registry import build_guard
 from starter.settings import Settings, get_settings

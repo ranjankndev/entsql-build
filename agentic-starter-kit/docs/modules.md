@@ -45,7 +45,14 @@ class ToxicityGuard:
             else GuardResult.fail(self.name, f"toxicity {score:.2f}")
 ```
 
-**Depends on** `settings`, `pyyaml`. No LLM.
+**Model-based guards** `groundedness` (is the answer supported by the tool
+results?) and `llm_judge` (any written rubric) live behind the same registry,
+with deterministic sampling, verdict caching, injection-fenced prompts and an
+explicit `on_error` fail-open/closed choice. `set_default_judge(provider)`
+injects the model; `build_agent` does it for you.
+
+**Depends on** `settings`, `pyyaml`. The model-based guards additionally need
+`starter.llm`; the regex guards do not.
 
 ---
 

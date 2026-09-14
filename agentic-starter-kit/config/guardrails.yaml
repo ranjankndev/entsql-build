@@ -37,6 +37,33 @@ guards:
     options:
       allowed: [search_kb, calculator, now, escalate_to_human]
 
+  # ---- model-based guards -------------------------------------------------
+  # These cost a model call per turn. Turn them on deliberately, start with
+  # fail_mode: flag and a sample_rate below 1.0, and read the logs before
+  # enforcing. Keep the judge on a different model than the agent.
+
+  # Hallucination check: is the answer supported by the tool results?
+  # Abstains when no tool ran, so it never punishes answering from knowledge.
+  - name: groundedness
+    enabled: false
+    options:
+      threshold: 0.6
+      sample_rate: 1.0
+      on_error: allow        # quality check -> fail open
+      severity: block
+
+  # Free-form rubric. Write the criterion as one testable sentence.
+  - name: llm_judge
+    enabled: false
+    options:
+      name: tone
+      criterion: >-
+        The content is polite and professional, and does not blame the user.
+      threshold: 0.5
+      sample_rate: 0.2       # grade a deterministic fifth of traffic
+      on_error: allow
+      severity: warn
+
   # Enabled per project; keeps regulated answers compliant.
   - name: required_disclaimer
     enabled: false

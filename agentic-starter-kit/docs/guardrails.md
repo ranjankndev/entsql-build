@@ -78,6 +78,49 @@ Rules for guards: deterministic where possible, fast (they run on every turn),
 never raise, and never call a model unless the guard's whole purpose is a
 model-based judgement.
 
+## Model-based guards
+
+Some policies cannot be written as a regex: *is this answer supported by the
+evidence?*, *is this rude?*, *does this give medical advice?* Those want a
+model — and a model-based check is still a guard, behind the same registry and
+the same `GuardResult`.
+
+```yaml
+  - name: groundedness      # hallucination check against the tool results
+    enabled: true
+    options:
+      threshold: 0.6
+      sample_rate: 1.0
+      on_error: allow       # quality check -> fail open
+      severity: block
+
+  - name: llm_judge         # free-form rubric
+    options:
+      name: tone
+      criterion: The content is polite and does not blame the user.
+      sample_rate: 0.2
+      on_error: allow
+```
+
+Four things these get wrong if you are not deliberate:
+
+| Concern | How the kit handles it | What you still decide |
+| --- | --- | --- |
+| **Cost / latency** — a judge doubles your model calls | `sample_rate` grades a *deterministic* subset (hash of the text, not a coin flip, so evals stay reproducible), and verdicts are cached | what fraction is worth paying for |
+| **Injection** — the judge reads attacker-influenced text | content is fenced, the judge is told the fence is data, and only a strict `VERDICT=/SCORE=` line is honoured; improvisation counts as a parse failure | nothing |
+| **Availability** — the judge can be down | `on_error: allow` (fail open) or `block` (fail closed); no universal default, so it is explicit | quality check → open; safety check → closed |
+| **Drift** — judges wander between model versions | pin model and temperature | use a *different* model than the agent; one grading its own output agrees with itself more than it should |
+
+**Groundedness** is the one most projects need first: hallucination is the
+failure users notice and no regex can see it. The agent passes its successful
+tool results to the output stage as `GuardContext.metadata["evidence"]`, and
+the guard **abstains when nothing was retrieved** — otherwise it would punish
+the agent for answering from its own knowledge, which is a different policy
+and deserves its own guard.
+
+Roll one out the same way as any other: `fail_mode: flag`, a low
+`sample_rate`, read the logs, then enforce.
+
 ## Coverage this kit ships with
 
 | Threat | Guard | Notes |
@@ -90,6 +133,9 @@ model-based judgement.
 | Context flooding / cost | `max_length` | and the loop budgets in `settings.py` |
 | Missing compliance text | `required_disclaimer` | off by default |
 
-What it does **not** give you: semantic topic classification, multilingual
-toxicity, or model-based groundedness checking. Those are a moderation API or
-an LLM judge — add them as guards behind the same interface.
+| Hallucination / unsupported claims | `groundedness` | model-based, off by default |
+| Tone, domain rules, anything rubric-shaped | `llm_judge` | model-based, off by default |
+
+What it does **not** give you: semantic topic classification and multilingual
+toxicity. Those are a moderation API — add one as a guard behind the same
+interface.

@@ -240,8 +240,15 @@ def reflect(state: AgentState, deps: AgentDeps) -> AgentState:
 
 
 def guard_output(state: AgentState, deps: AgentDeps) -> AgentState:
+    # Tool results travel with the context so a groundedness judge can check
+    # the answer against what the tools actually returned.
     ctx = GuardContext(
-        stage=Stage.OUTPUT, thread_id=state["thread_id"], user_id=state.get("user_id")
+        stage=Stage.OUTPUT,
+        thread_id=state["thread_id"],
+        user_id=state.get("user_id"),
+        metadata={
+            "evidence": [t["content"] for t in state.get("tool_results", []) if t.get("ok")]
+        },
     )
     with deps.tracer.span("guard.output", kind="guard") as span:
         outcome = deps.guardrails.run_safe(state.get("answer", ""), ctx)

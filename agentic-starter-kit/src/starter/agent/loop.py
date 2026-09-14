@@ -29,7 +29,7 @@ from starter.agent.nodes import (
     think_streaming,
 )
 from starter.agent.state import AgentState, new_state
-from starter.guardrails import build_pipeline
+from starter.guardrails import build_pipeline, set_default_judge
 from starter.llm import get_llm
 from starter.memory import build_memory
 from starter.observability import get_tracer, trace_run
@@ -161,6 +161,9 @@ def build_agent(
         return Agent(deps)
     s = settings or get_settings()
     llm = get_llm(s)
+    # Model-based guards are built from YAML by the registry, which has no
+    # access to these dependencies; hand them the provider once, here.
+    set_default_judge(llm)
     return Agent(
         AgentDeps(
             llm=llm,
