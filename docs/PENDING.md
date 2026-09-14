@@ -1,0 +1,32 @@
+# Pending issues that need the human
+
+Kept up to date while building P1-P6 unattended. Newest step last. Each item
+says what is blocked and what to do.
+
+## Open
+
+### 1. P4 acceptance needs a real LLM provider
+No `.env` exists and nothing listens on `127.0.0.1:11434` (Ollama), so
+`./bench samples fill ...` cannot be run against a real model. Everything else
+in P4 is tested with fake providers and local HTTP stubs.
+To do: put a key in `.env` (e.g. `OPENROUTER_API_KEY=...`, mode 600) and run
+`./bench --llm openrouter samples fill CUST_MSTR "3 customers, one with a NULL segment" -n 3`.
+
+### 2. Identifier case policy (decision to confirm)
+The model keeps names as written (`CUST_MSTR`). DDL emits them unquoted, so
+PostgreSQL stores them lower case (`cust_mstr`) and queries work with any case
+without quotes. Raw SQL in `check`/`default` relies on this. Names that are SQL
+keywords (e.g. `ORDER`) are quoted in lower case (`"order"`). The importer keeps
+the source spelling of table and column names, but CHECK/DEFAULT expressions
+come back lower case (pglast deparse). Say if you want quoted, case-preserving
+identifiers instead; it is one function (`PostgresDialect.quote`).
+
+### 3. PLAN section 3 example YAML is invalid as written
+`note: dropped FK on purpose, ERP style` sits inside a `{...}` flow mapping,
+where the comma splits it into a second key. Quote it:
+`note: "dropped FK on purpose, ERP style"`. The real model files are written by
+the tool and are quoted correctly; only the doc example is affected.
+
+### 4. Nothing pushed
+Each step is committed locally on `claude/text-to-sql-benchmark-setup-efzs2y`;
+nothing was pushed. Review, then `git push`.

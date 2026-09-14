@@ -1,6 +1,6 @@
 import unittest
 
-from tools.bench import PLANNED_STEP, build_parser, command_key
+from tools.bench import HANDLERS, PLANNED_STEP, build_parser, command_key
 
 
 class ParserTest(unittest.TestCase):
@@ -20,7 +20,8 @@ class ParserTest(unittest.TestCase):
         for key, argv in argv_by_key.items():
             with self.subTest(key=key):
                 self.assertEqual(command_key(parser.parse_args(["--db", "vps", *argv])), key)
-        self.assertEqual(set(PLANNED_STEP) | {"status"}, set(argv_by_key))
+        self.assertEqual(set(PLANNED_STEP) | set(HANDLERS), set(argv_by_key))
+        self.assertEqual(set(PLANNED_STEP) & set(HANDLERS), set())
 
     def test_arguments(self) -> None:
         args = build_parser().parse_args(["--verbose", "--llm", "ollama", "samples", "fill", "T", "x", "-n", "3"])

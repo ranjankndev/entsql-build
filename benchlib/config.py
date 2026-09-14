@@ -54,6 +54,14 @@ class Paths:
     def build_stamp(self) -> Path:
         return self.build / ".build.json"
 
+    @property
+    def ddl(self) -> Path:
+        return self.build / f"{self.model.stem}.sql"
+
+    @property
+    def diagram(self) -> Path:
+        return self.build / f"{self.model.stem}.svg"
+
 
 @dataclass(frozen=True)
 class Config:
