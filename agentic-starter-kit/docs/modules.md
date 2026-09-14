@@ -318,7 +318,22 @@ mention the word so you can skim them.
 can itself scaffold another. The end-to-end test scaffolds a project and runs
 *its* suite in a subprocess; a guard env var stops that recursing forever.
 
-## 11. Deployment — `deploy/azure/`
+## 11. Load testing — `src/starter/loadtest.py`
+
+**What** A thread-pool load generator with nearest-rank percentiles, error and
+stop-reason breakdowns, and a `--max-p95` budget gate.
+
+```bash
+LLM_PROVIDER=echo starter loadtest --requests 200 --concurrency 10   # your overhead
+starter loadtest --url https://app/chat --requests 200 --concurrency 10 --max-p95 3000
+```
+
+**Why in-process first** With the echo provider this measures guardrails, memory
+and graph bookkeeping with the model taken out — the number you cannot get by
+load-testing an endpoint. See [`docs/performance.md`](performance.md) for the
+per-stage budget.
+
+## 12. Deployment — `deploy/azure/`
 
 Bicep for Container Apps + Azure OpenAI + Cosmos DB + Key Vault + managed
 identity + Log Analytics, deploy scripts, and the full guide in

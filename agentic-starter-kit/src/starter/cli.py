@@ -8,6 +8,7 @@
     starter guard "text to test" --stage input
     starter serve --port 8000
     starter init ../supportbot --package supportbot
+    starter loadtest --requests 200 --concurrency 10 --max-p95 3000
 """
 
 from __future__ import annotations
@@ -134,6 +135,32 @@ def cmd_guard(args: argparse.Namespace) -> int:
     return 1 if outcome.blocked else 0
 
 
+def cmd_loadtest(args: argparse.Namespace) -> int:
+    from starter.loadtest import http_caller, in_process_caller, run_load
+
+    if args.url:
+        caller, target = http_caller(args.url), args.url
+    else:
+        from starter.agent import build_agent
+
+        caller, target = in_process_caller(build_agent()), "in-process"
+
+    report = run_load(
+        caller,
+        requests=args.requests,
+        concurrency=args.concurrency,
+        target=target,
+    )
+    print(json.dumps(report.to_dict(), indent=2) if args.json else report.to_markdown())
+    if args.max_p95 and report.percentile(95) > args.max_p95:
+        print(
+            f"\nFAIL: p95 {report.percentile(95):.0f} ms exceeds budget {args.max_p95:.0f} ms",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     from starter.scaffold import ScaffoldError, init_project
 
@@ -203,6 +230,14 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--force", action="store_true", help="write into a non-empty directory")
     init.add_argument("--dry-run", action="store_true")
     init.set_defaults(func=cmd_init)
+
+    load = sub.add_parser("loadtest", help="measure latency under concurrency")
+    load.add_argument("--requests", type=int, default=50)
+    load.add_argument("--concurrency", type=int, default=5)
+    load.add_argument("--url", help="POST /chat endpoint; omit to drive the agent in-process")
+    load.add_argument("--max-p95", type=float, help="fail if p95 exceeds this many ms")
+    load.add_argument("--json", action="store_true")
+    load.set_defaults(func=cmd_loadtest)
 
     serve = sub.add_parser("serve", help="run the HTTP API")
     serve.add_argument("--host", default="0.0.0.0")

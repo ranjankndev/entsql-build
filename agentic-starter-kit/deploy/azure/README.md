@@ -256,3 +256,4 @@ az cognitiveservices account purge -g $RG -n <account> -l $LOCATION
 - [ ] Alerts on block rate, loop exhaustion, tool errors, p95 latency, 429s
 - [ ] Retention and deletion for transcripts documented and enforced by TTL
 - [ ] Rollback rehearsed at least once
+- [ ] Load tested at the target concurrency, and the scale rule matched to it (see [`docs/performance.md`](../../docs/performance.md))

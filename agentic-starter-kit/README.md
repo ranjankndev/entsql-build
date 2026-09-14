@@ -77,6 +77,7 @@ cp .env.example .env
 | **Tools** | `src/starter/tools/` | Typed tools with a `risk` level and an approval gate. Placeholder tools included. |
 | **LLM seam** | `src/starter/llm/` | `echo`, OpenAI, Azure OpenAI, Anthropic behind one interface, with retry/backoff, `Retry-After` and a circuit breaker. |
 | **API** | `src/starter/api/` | FastAPI `/chat`, `/chat/stream` (SSE), `/healthz`, `/readyz`, `/guardrails/check`. |
+| **Load testing** | `src/starter/loadtest.py` | `starter loadtest` — in-process or HTTP, percentiles, stop-reason breakdown, `--max-p95` gate. |
 | **Scaffolding** | `src/starter/scaffold.py` | `starter init` — copy the kit into a new project and rename the package mechanically. |
 | **Limits** | `src/starter/ratelimit.py` | Per-identity token bucket plus daily request and token quotas, with 429s and `X-RateLimit-*` headers. |
 | **Azure deploy** | `deploy/azure/` | Bicep for Container Apps + Azure OpenAI + Cosmos + Key Vault + identity, plus a full [deployment guide](deploy/azure/README.md). |
@@ -162,6 +163,7 @@ assert report.pass_rate >= 0.9
 | [`docs/memory.md`](docs/memory.md) | The three layers, summarisation, backends, retention |
 | [`docs/observability.md`](docs/observability.md) | Traces, spans, scores, the metrics worth alerting on |
 | [`docs/limits.md`](docs/limits.md) | Rate limits, quotas, identity, and the multi-replica caveat |
+| [`docs/performance.md`](docs/performance.md) | Latency budget per stage, load testing, replica/concurrency tuning |
 | [`docs/multi-agent.md`](docs/multi-agent.md) | When a team beats one agent (rarely), the supervisor shape, bounds and failure behaviour |
 | [`docs/architecture.md`](docs/architecture.md) | Node-by-node walkthrough, LangGraph vs. plain loop, extension points |
 | [`deploy/azure/README.md`](deploy/azure/README.md) | The complete Azure deployment guide |

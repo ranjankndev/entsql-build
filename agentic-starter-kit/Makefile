@@ -2,7 +2,7 @@ PY ?= python3
 VENV ?= .venv
 BIN := $(VENV)/bin
 
-.PHONY: help venv install lint typecheck test eval-gate eval-core baselines run docker clean
+.PHONY: help venv install lint typecheck test eval-gate eval-core baselines loadtest run docker clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS=":.*?## "} {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -36,6 +36,9 @@ baselines: ## re-record the committed baselines (review the diff before committi
 
 eval-core: ## quality suite against the configured model
 	$(BIN)/starter eval --suite evals/datasets/core.jsonl --threshold 0.85
+
+loadtest: ## measure in-process latency (your overhead, no model)
+	$(BIN)/starter loadtest --requests 200 --concurrency 10
 
 run: ## serve the API locally
 	$(BIN)/starter serve --port 8000 --reload
