@@ -1,0 +1,64 @@
+name: deploy-azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, prod]
+        default: dev
+  push:
+    tags: ["v*"]
+
+permissions:
+  id-token: write   # OIDC federated credentials; no stored SP secret
+  contents: read
+
+env:
+  APP_NAME: agentkit
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: build image in ACR
+        run: |
+          ACR=$(az acr list -g ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+          az acr build -r "$ACR" -t "${APP_NAME}:${GITHUB_SHA::7}" -t "${APP_NAME}:latest" .
+          echo "IMAGE=$(az acr show -n "$ACR" --query loginServer -o tsv)/${APP_NAME}:${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: deploy revision with no traffic
+        run: |
+          az containerapp update \
+            -g ${{ vars.RESOURCE_GROUP }} \
+            -n ca-${APP_NAME}-${{ inputs.environment || 'dev' }} \
+            --image "$IMAGE" --revision-suffix "r${GITHUB_SHA::7}" -o none
+
+      - name: smoke test
+        run: |
+          FQDN=$(az containerapp show -g ${{ vars.RESOURCE_GROUP }} \
+            -n ca-${APP_NAME}-${{ inputs.environment || 'dev' }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          curl -fsS "https://$FQDN/healthz"
+          curl -fsS "https://$FQDN/readyz"
+
+      - name: safety evals against the deployment
+        run: |
+          pip install -e ".[dev]"
+          starter eval --suite evals/datasets/safety.jsonl --threshold 1.0
+
+      - name: shift traffic
+        run: |
+          az containerapp ingress traffic set \
+            -g ${{ vars.RESOURCE_GROUP }} \
+            -n ca-${APP_NAME}-${{ inputs.environment || 'dev' }} \
+            --revision-weight latest=100 -o none

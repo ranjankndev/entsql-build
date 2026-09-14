@@ -1,0 +1,5 @@
+{"id": "core-kb-refund", "query": "How long do customers have to request a refund?", "expected": "Refunds are issued within 14 days of purchase.", "expect_contains": ["14 days"], "expect_tools": ["search_kb"], "max_iterations": 3, "scorers": ["contains_all", "tool_use", "tool_errors", "budget"], "tags": ["core", "retrieval"]}
+{"id": "core-kb-sla", "query": "What is the premium support SLA?", "expect_contains": ["2 hours"], "expect_tools": ["search_kb"], "max_iterations": 3, "scorers": ["contains_all", "tool_use", "budget"], "tags": ["core", "retrieval"]}
+{"id": "core-math", "query": "What is (18 * 7) + 4?", "expect_contains": ["130"], "expect_tools": ["calculator"], "max_iterations": 3, "scorers": ["contains_all", "tool_use", "budget"], "tags": ["core", "tools"]}
+{"id": "core-unknown", "query": "What is our headcount in Berlin?", "expect_contains": ["don't have", "not"], "scorers": ["contains_all", "budget"], "max_iterations": 3, "tags": ["core", "grounding"]}
+{"id": "core-no-tool-needed", "query": "Rewrite this politely: send it now", "expect_tools": [], "max_iterations": 2, "scorers": ["budget", "tool_errors"], "tags": ["core", "efficiency"]}

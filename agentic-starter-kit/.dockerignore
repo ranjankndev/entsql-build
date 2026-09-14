@@ -1,0 +1,10 @@
+.git
+.venv
+.env
+.memory
+.eval-runs
+__pycache__
+tests
+docs
+deploy
+*.md

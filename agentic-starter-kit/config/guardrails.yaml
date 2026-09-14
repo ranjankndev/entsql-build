@@ -1,0 +1,44 @@
+# Guardrail policy. Edit this file, not the code, to change what is enforced.
+#
+#   fail_mode: block -> a BLOCK-severity hit raises GuardrailViolation
+#              flag  -> the hit is recorded and the run continues (shadow mode;
+#                       use this to measure a new guard before enforcing it)
+fail_mode: block
+block_message: >-
+  I can't help with that request. If you think this is a mistake, rephrase it
+  or contact support with the trace id shown below.
+
+guards:
+  - name: max_length
+    options:
+      max_chars: 16000
+
+  - name: prompt_injection
+    options:
+      extra_patterns:
+        - "exfiltrate .*(data|records)"
+
+  - name: pii
+    options:
+      action: redact          # redact | block
+      kinds: [email, phone, credit_card, ssn, aadhaar]
+
+  - name: secret_leak
+    options: {}
+
+  - name: denied_topics
+    options:
+      topics:
+        self_harm: ["how to kill myself", "suicide method"]
+        weapons: ["build a bomb", "make a pipe bomb"]
+        malware: ["write ransomware", "keylogger source"]
+
+  - name: tool_allowlist
+    options:
+      allowed: [search_kb, calculator, now, escalate_to_human]
+
+  # Enabled per project; keeps regulated answers compliant.
+  - name: required_disclaimer
+    enabled: false
+    options:
+      text_to_append: "This is general information, not professional advice."
