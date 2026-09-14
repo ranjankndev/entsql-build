@@ -22,7 +22,7 @@ regression runner, SQLite export, VPS deployment, LLM plausibility review.
 | Database | PostgreSQL 16 in Docker Desktop (WSL2 backend). `docker/compose.yaml`, port bound to `127.0.0.1:5432`. Roles from `docker/init/01-roles.sql`: `postgres`, `bench_owner`, `bench_read`. |
 | Python | 3.12 in a venv inside WSL2. Packages: `psycopg[binary]`, `pyyaml`, `pglast`, `graphviz`, `faker`, `streamlit`, `anthropic`, `pandas`. System package: `graphviz` (`apt install graphviz`). |
 | Editors | VS Code with Remote-WSL, Claude Code in the integrated terminal. DBeaver on Windows connects to `localhost:5432`. |
-| LLM | Pluggable provider (section 8). Default: Anthropic Python SDK, model `claude-opus-5`, key in `ANTHROPIC_API_KEY`. Alternative: local Ollama over its HTTP API. |
+| LLM | Optional. Pluggable provider (section 8): any OpenAI-compatible endpoint (OpenRouter, DeepSeek, Groq, Mistral, vLLM, llama.cpp, Ollama), local Ollama native API, or Anthropic. Keys live in `.env`, never in the shell profile. With no `[llm.*]` profile configured the app runs; LLM buttons are simply disabled. |
 
 Connection comes from a named profile in `bench.toml` (section 8). Local and
 VPS differ only by profile. Password via `~/.pgpass`. No `docker exec`
@@ -54,7 +54,7 @@ text2sql-benchmark/
 │   ├── config.py, db.py, model.py, importer.py, diagram.py,
 │   ├── build.py, samples.py, gen.py, checks.py
 │   ├── dialects/base.py, postgres.py        # DDL emit + load per engine (sqlite.py, mysql.py later)
-│   └── llm/base.py, anthropic_provider.py, ollama_provider.py
+│   └── llm/base.py, openai_compat_provider.py, ollama_provider.py, anthropic_provider.py
 └── app/
     ├── Home.py
     └── pages/1_Model.py 2_Data.py 3_Generate.py 4_Checks.py 5_SQL.py
@@ -147,7 +147,7 @@ Run one prompt per session step. After each, run the acceptance command
 yourself before moving on.
 
 **P0 Scaffold**
-> Read docs/PLAN.md and CLAUDE.md. Create the repository layout from section 2, `bench.toml` with the `[db.local]`, `[db.vps]` and `[llm.*]` profiles from section 8, `benchlib/config.py` (loads bench.toml, selects profiles from `BENCH_DB` and `BENCH_LLM` env vars with defaults `local` and `anthropic`), `benchlib/db.py` (connections for the owner and read roles of the selected profile using ~/.pgpass), `tools/bench.py` with argparse subcommands from section 4 as stubs, a `./bench` wrapper, `requirements.txt`, and `docker/compose.yaml` plus `docker/init/01-roles.sql` for PostgreSQL 16 bound to 127.0.0.1:5432 with roles postgres, bench_owner (owner of database benchdata) and bench_read (read-only). Add a README with the WSL2 setup steps.
+> Read docs/PLAN.md and CLAUDE.md. Create the repository layout from section 2, `bench.toml` with the `[db.local]`, `[db.vps]` and `[llm.*]` profiles from section 8, `benchlib/config.py` (loads bench.toml, reads a `.env` file at the repo root into the process environment if present with a ten-line stdlib reader, selects profiles from `BENCH_DB` and `BENCH_LLM` env vars with defaults `local` and `none`), `benchlib/db.py` (connections for the owner and read roles of the selected profile using ~/.pgpass), `tools/bench.py` with argparse subcommands from section 4 as stubs, a `./bench` wrapper, `requirements.txt`, and `docker/compose.yaml` plus `docker/init/01-roles.sql` for PostgreSQL 16 bound to 127.0.0.1:5432 with roles postgres, bench_owner (owner of database benchdata) and bench_read (read-only). Add a README with the WSL2 setup steps.
 
 **P1 Model core**
 > Implement `benchlib/model.py` (load, validate, save the YAML from PLAN section 3, dataclasses for Table, Column, Relation), `benchlib/dialects/base.py` (the `Dialect` interface from section 8) and `benchlib/dialects/postgres.py` (YAML to PostgreSQL DDL: CREATE TABLE with PK, NOT NULL, DEFAULT, CHECK, then FOREIGN KEY constraints only for declared relations, then COMMENT ON for descriptions; plus `load_csv` using COPY), `benchlib/diagram.py` (Graphviz SVG: record node per table, solid edges declared, dashed undeclared, label = kind), and `benchlib/importer.py` (pglast-based DDL import to YAML). Wire `bench model import|render|commit`. Include unit tests that round-trip a small DDL through import and emit.
@@ -159,7 +159,7 @@ yourself before moving on.
 > Implement `app/Home.py` and `app/pages/1_Model.py` per PLAN section 5, calling only benchlib functions. Saving writes the YAML and re-renders the diagram.
 
 **P4 Samples and LLM**
-> Implement `benchlib/llm/base.py` (the `LLMProvider` interface from section 8), `benchlib/llm/anthropic_provider.py` (Anthropic Python SDK, model claude-opus-5, structured output as a JSON schema for a list of rows matching the table's columns) and `benchlib/llm/ollama_provider.py` (Ollama native `/api/chat` with `format` set to the same JSON schema, `stream: false`, using `urllib.request`, no new dependency). Then `benchlib/samples.py` with validation as in PLAN section 4; it takes a provider and never imports a provider module directly. Wire `bench samples fill` and `app/pages/2_Data.py`.
+> Implement `benchlib/llm/base.py` (the `LLMProvider` interface from section 8 and a `get_provider(config)` factory that returns None when the profile is `none`), `benchlib/llm/openai_compat_provider.py` (POST `{base_url}/chat/completions` with `response_format` set to a JSON schema when the endpoint supports it and a fallback that asks for JSON in the system prompt and parses the first JSON object in the reply; `urllib.request`, no new dependency; API key read from the env var named in the profile), `benchlib/llm/ollama_provider.py` (Ollama native `/api/chat` with `format` set to the same JSON schema, `stream: false`), and `benchlib/llm/anthropic_provider.py` (Anthropic Python SDK with structured outputs; only imported when that profile is selected, so the `anthropic` package is optional). Then `benchlib/samples.py` with validation as in PLAN section 4; it takes a provider and never imports a provider module directly. The Data page shows the LLM box only when a provider is configured. Wire `bench samples fill` and `app/pages/2_Data.py`.
 
 **P5 Generator**
 > Implement `benchlib/gen.py`: the column generators from PLAN section 3, seeded `random.Random` and `faker.Faker` with the YAML seed, parents-before-children ordering over all relations, `ref` sampling from already generated parent values, `copy` via a local ref column, `expr` evaluated over the row dict, `null_rate`. Write `data/<TABLE>.csv`. Wire `bench gen` and `app/pages/3_Generate.py`. Make it fast enough for 20 tables and 500k total rows in under a minute.
@@ -206,17 +206,31 @@ dbname = "benchdata"
 owner_user = "bench_owner"
 read_user = "bench_read"
 
+[llm.none]                    # default: app runs, LLM features hidden
+provider = "none"
+
+[llm.openrouter]              # any OpenAI-compatible endpoint; add more profiles the same way
+provider = "openai_compat"
+base_url = "https://openrouter.ai/api/v1"
+model = "deepseek/deepseek-chat"
+api_key_env = "OPENROUTER_API_KEY"
+
+[llm.ollama]                  # local, free, slow on CPU
+provider = "ollama"
+base_url = "http://127.0.0.1:11434"
+model = "llama3.1:8b"
+
 [llm.anthropic]
 provider = "anthropic"
 model = "claude-opus-5"
-
-[llm.ollama]
-provider = "ollama"
-model = "llama3.1:8b"
-base_url = "http://127.0.0.1:11434"
+api_key_env = "ANTHROPIC_API_KEY"
 ```
 `BENCH_DB=vps ./bench rebuild` targets the VPS. Nothing else changes. The
-CLI also accepts `--db vps` and `--llm ollama`.
+CLI also accepts `--db vps` and `--llm openrouter`.
+
+Secrets go in `.env` at the repo root (gitignored, mode 600), read by
+`config.py`. Never export LLM keys in `~/.bashrc`: Claude Code itself reads
+`ANTHROPIC_API_KEY` and would bill sessions to it instead of the subscription.
 
 **SQL dialect: `benchlib/dialects/base.py`.** All engine-specific SQL and
 loading goes through one interface; the rest of the library only calls it.
@@ -250,9 +264,14 @@ class LLMProvider(Protocol):
 ```
 One method. Callers (`samples.py`, later spec proposals) build the prompt and
 the JSON schema, call `complete_json`, and validate the result with code.
-`anthropic_provider.py` uses structured outputs; `ollama_provider.py` uses
-Ollama's `format` field with the same schema. Provider selection is in
-`config.py` from the `[llm.*]` profile. No provider import outside `benchlib/llm/`.
+`openai_compat_provider.py` covers every endpoint that speaks the OpenAI chat
+API, which is nearly all hosted and self-hosted models; `ollama_provider.py`
+uses Ollama's `format` field; `anthropic_provider.py` uses structured
+outputs. Provider selection is in `config.py` from the `[llm.*]` profile;
+`get_provider` returns None for profile `none` and callers must handle that.
+No provider import outside `benchlib/llm/`. Because every output is validated
+against the table definition before it is saved, a weaker or cheaper model
+costs you rejected rows, never bad data.
 
 **Debuggability rules.** Every command prints the SQL it is about to run when
 `--verbose` is set. Every failing check prints the query and the first rows.
