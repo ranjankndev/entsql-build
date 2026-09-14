@@ -44,3 +44,65 @@ exit=0   (git commit e50e428 "model v001: init")
 $ .venv/bin/python -m unittest
 Ran 43 tests  OK
 ```
+
+## P2 Rebuild (2026-09-14)
+
+```
+$ ./bench status
+no build yet
+exit=0
+
+$ ./bench rebuild --no-generate
+table        | data rows | sample rows | rows in db
+-------------+-----------+-------------+-----------
+SEG_LKP      | 0         | 0           | 0
+BRNCH        | 0         | 0           | 0
+PROD_LKP     | 0         | 0           | 0
+CUST_MSTR    | 0         | 0           | 0
+ACCT         | 0         | 0           | 0
+TXN          | 0         | 0           | 0
+ACCT_BAL_MTH | 0         | 0           | 0
+rebuilt schema mybank on db profile local: 0 rows, model version 1
+exit=0
+
+$ ./bench status
+OK: built 2026-09-14T19:13:30+00:00 on db profile local, schema mybank, model version 1, 0 rows in 7 tables
+exit=0
+
+$ ./bench sql "select table_name from information_schema.tables where table_schema = 'mybank' order by 1"
+acct, acct_bal_mth, brnch, cust_mstr, prod_lkp, seg_lkp, txn   (7 rows, as bench_read)
+
+$ ./bench sql "select conname, pg_get_constraintdef(oid) as def from pg_constraint where conrelid = 'cust_mstr'::regclass and contype = 'c'"
+cust_mstr_stat_cd_check | CHECK ((stat_cd = ANY (ARRAY['A'::bpchar, 'C'::bpchar, 'S'::bpchar])))
+
+--- deliberate typo in model/mybank.yaml: check "stat_cdx IN ('A', 'C', 'S')"
+$ ./bench status
+STALE: built 2026-09-14T19:13:30+00:00 on db profile local, schema mybank, model version 1, 0 rows in 7 tables
+changed since that build:
+  model/mybank.yaml (changed)
+exit=1
+
+$ ./bench model render
+exit=0
+
+$ ./bench rebuild --no-generate
+bench rebuild: build/mybank.sql: column "stat_cdx" does not exist
+LINE 6:     STAT_CD char(1) DEFAULT 'A' CHECK (stat_cdx IN ('A', 'C'...
+HINT:  Perhaps you meant to reference the column "cust_mstr.stat_cd".
+  - statement: CREATE TABLE CUST_MSTR (...)
+exit=1
+
+$ ./bench sql "...same constraint query..."
+cust_mstr_stat_cd_check | CHECK ((stat_cd = ANY (ARRAY['A'::bpchar, 'C'::bpchar, 'S'::bpchar])))   <- previous schema intact
+$ ./bench sql "select count(*) as tables from information_schema.tables where table_schema = 'mybank'"
+7
+
+--- git checkout model/mybank.yaml build/mybank.sql build/mybank.svg
+$ ./bench status
+OK: built 2026-09-14T19:13:30+00:00 ...
+exit=0
+
+$ BENCH_INTEGRATION=1 .venv/bin/python -m unittest tests.test_rebuild_integration
+test_bad_csv_rolls_back ... ok
+test_rebuild_rollback_and_samples ... ok   (sample upsert on PK, rollback on CHECK typo, bench_read query)
+```

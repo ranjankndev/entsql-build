@@ -12,15 +12,16 @@ from pathlib import Path
 if sys.version_info < (3, 12):
     sys.exit("bench needs Python 3.12 or newer")
 
-from benchlib import build, importer, versioning
+import psycopg
+
+from benchlib import build, importer, sqlrun, versioning
+from benchlib.build import BuildError
 from benchlib.config import Config, ConfigError, load_config
 from benchlib.dialects import get_dialect
 from benchlib.model import ModelError, load_model
 
 # Commands that are still stubs, with the PLAN step that implements them.
 PLANNED_STEP = {
-    "rebuild": "P2",
-    "sql": "P2",
     "samples fill": "P4",
     "gen": "P5",
     "check": "P6",
@@ -46,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     rebuild = commands.add_parser("rebuild", help="regenerate data and rebuild the schema in one transaction")
     rebuild.add_argument("--no-generate", action="store_true", help="skip data generation")
 
-    commands.add_parser("status", help="compare current files with the last build")
+    commands.add_parser("status", help="compare current files with the last build (exit 1 when STALE)")
 
     samples = commands.add_parser("samples", help="hand-crafted sample rows")
     samples_commands = samples.add_subparsers(dest="samples_command", required=True)
@@ -78,8 +79,9 @@ def display(config: Config, path: Path) -> str:
 
 
 def run_status(config: Config, args: argparse.Namespace) -> int:
-    print(build.build_status(config.paths))
-    return 0
+    status = build.build_status(config.paths)
+    print(build.status_text(status))
+    return 1 if status.state == "stale" else 0
 
 
 def run_model_import(config: Config, args: argparse.Namespace) -> int:
@@ -109,11 +111,42 @@ def run_model_commit(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def run_rebuild(config: Config, args: argparse.Namespace) -> int:
+    result = build.rebuild(
+        config.paths,
+        config.db,
+        get_dialect(config.db.dialect),
+        dt.datetime.now(dt.UTC),
+        generate=not args.no_generate,
+        verbose=args.verbose,
+    )
+    for warning in result.warnings:
+        print(f"warning: {warning}")
+    rows = [
+        (name, result.loaded.get(name, 0), result.upserted.get(name, 0), count)
+        for name, count in result.stamp.row_counts.items()
+    ]
+    print(sqlrun.format_table(["table", "data rows", "sample rows", "rows in db"], rows))
+    stamp = result.stamp
+    print(f"rebuilt schema {stamp.schema} on db profile {stamp.db}: {sum(stamp.row_counts.values())} rows, model version {stamp.model_version}")
+    return 0
+
+
+def run_sql(config: Config, args: argparse.Namespace) -> int:
+    result = sqlrun.run_sql(config.paths, config.db, args.query, verbose=args.verbose)
+    if result.columns:
+        print(sqlrun.format_table(result.columns, result.rows))
+    print(sqlrun.result_summary(result))
+    return 0
+
+
 HANDLERS: dict[str, Callable[[Config, argparse.Namespace], int]] = {
     "status": run_status,
     "model import": run_model_import,
     "model render": run_model_render,
     "model commit": run_model_commit,
+    "rebuild": run_rebuild,
+    "sql": run_sql,
 }
 
 
@@ -131,10 +164,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         return handler(config, args)
-    except ModelError as exc:
+    except (ModelError, BuildError) as exc:
         print(f"bench {key}: {exc}", file=sys.stderr)
-        for error in exc.errors:
-            print(f"  - {error}", file=sys.stderr)
+        for line in getattr(exc, "errors", None) or getattr(exc, "details", None) or []:
+            print(f"  - {line}", file=sys.stderr)
+        return 1
+    except psycopg.Error as exc:
+        print(f"bench {key}: database error: {str(exc).strip()}", file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as exc:
         print(f"bench {key}: command failed: {' '.join(exc.cmd)}", file=sys.stderr)

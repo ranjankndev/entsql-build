@@ -1,22 +1,70 @@
-"""Render the model into build/ and report build status. The database rebuild is added in P2."""
+"""Render the model into build/, rebuild the database in one transaction, and report build status."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import contextlib
+import datetime as dt
+import hashlib
+import json
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
+
+import psycopg
 
 from benchlib import diagram
-from benchlib.config import Paths
+from benchlib.config import DbProfile, Paths
+from benchlib.db import connect_owner, execute
 from benchlib.dialects.base import Dialect
-from benchlib.model import Model, ModelError, validate_model
+from benchlib.model import Model, ModelError, Table, generation_order, load_model, validate_model
 
 NO_BUILD = "no build yet"
+LOCK_TIMEOUT_SECONDS = 10
+CHECKS_FILE = "structural.sql"
+FAILING_ROWS_SHOWN = 10
+
+
+class BuildError(Exception):
+    """The rebuild failed and was rolled back; details holds extra lines such as the failing statement."""
+
+    def __init__(self, message: str, details: list[str] | None = None) -> None:
+        super().__init__(message)
+        self.details = details or []
 
 
 @dataclass
 class RenderResult:
     ddl: Path
     diagram: Path
+
+
+@dataclass
+class BuildStamp:
+    built_at: str
+    db: str
+    schema: str
+    model_version: int
+    files: dict[str, str]
+    row_counts: dict[str, int]
+
+
+@dataclass
+class BuildStatus:
+    state: str  # "none", "ok" or "stale"
+    stamp: BuildStamp | None = None
+    changes: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RebuildResult:
+    stamp: BuildStamp
+    loaded: dict[str, int]
+    upserted: dict[str, int]
+    warnings: list[str]
+
+
+# ---------------------------------------------------------------- render
 
 
 def schema_sql(model: Model, dialect: Dialect) -> str:
@@ -42,8 +90,193 @@ def render(model: Model, paths: Paths, dialect: Dialect) -> RenderResult:
     return RenderResult(ddl=paths.ddl, diagram=paths.diagram)
 
 
-def build_status(paths: Paths) -> str:
-    """Status line for the current files compared with the last build stamp."""
+# ----------------------------------------------------------- stamp, status
+
+
+def relative(paths: Paths, path: Path) -> str:
+    return path.relative_to(paths.root).as_posix()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def tracked_files(paths: Paths) -> list[Path]:
+    """The inputs of a rebuild: model YAML, extra.sql, samples and generated data."""
+    files = [paths.model, paths.extra_sql, *sorted(paths.samples.glob("*.csv")), *sorted(paths.data.glob("*.csv"))]
+    return [path for path in files if path.is_file()]
+
+
+def file_hashes(paths: Paths) -> dict[str, str]:
+    return {relative(paths, path): sha256_file(path) for path in tracked_files(paths)}
+
+
+def compare_files(built: dict[str, str], current: dict[str, str]) -> list[str]:
+    changes = [f"{name} (changed)" for name in current if name in built and built[name] != current[name]]
+    changes += [f"{name} (added)" for name in current if name not in built]
+    changes += [f"{name} (removed)" for name in built if name not in current]
+    return sorted(changes)
+
+
+def write_stamp(path: Path, stamp: BuildStamp) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(asdict(stamp), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def read_stamp(path: Path) -> BuildStamp:
+    return BuildStamp(**json.loads(path.read_text(encoding="utf-8")))
+
+
+def build_status(paths: Paths) -> BuildStatus:
     if not paths.build_stamp.exists():
+        return BuildStatus(state="none")
+    stamp = read_stamp(paths.build_stamp)
+    changes = compare_files(stamp.files, file_hashes(paths))
+    return BuildStatus(state="stale" if changes else "ok", stamp=stamp, changes=changes)
+
+
+def status_text(status: BuildStatus) -> str:
+    if status.stamp is None:
         return NO_BUILD
-    raise NotImplementedError("comparing files with the build stamp is implemented in P2")
+    stamp = status.stamp
+    summary = (
+        f"built {stamp.built_at} on db profile {stamp.db}, schema {stamp.schema}, model version {stamp.model_version}, "
+        f"{sum(stamp.row_counts.values())} rows in {len(stamp.row_counts)} tables"
+    )
+    if status.state == "ok":
+        return f"OK: {summary}"
+    return "\n".join([f"STALE: {summary}", "changed since that build:", *(f"  {change}" for change in status.changes)])
+
+
+# --------------------------------------------------------------- rebuild
+
+
+def rebuild(
+    paths: Paths,
+    profile: DbProfile,
+    dialect: Dialect,
+    now: dt.datetime,
+    generate: bool = True,
+    verbose: bool = False,
+) -> RebuildResult:
+    """Drop and recreate the schema, load data and samples, run checks: one transaction, rolled back on any error."""
+    model = load_model(paths.model)
+    errors = validate_model(model)
+    if errors:
+        raise ModelError("model is invalid", errors)
+    if generate:
+        raise BuildError("data generation is implemented in P5; run rebuild with --no-generate")
+    ddl = rendered_ddl(paths, model, dialect)
+    extra = paths.extra_sql.read_text(encoding="utf-8") if paths.extra_sql.is_file() else ""
+    hashes = file_hashes(paths)
+    conn = connect_owner(profile)
+    try:
+        loaded, upserted, counts = load_schema(conn, paths, profile, dialect, model, ddl, extra, verbose)
+        conn.commit()
+    except BaseException:
+        with contextlib.suppress(psycopg.Error):
+            conn.rollback()
+        raise
+    finally:
+        conn.close()
+    stamp = BuildStamp(
+        built_at=now.isoformat(timespec="seconds"),
+        db=profile.name,
+        schema=model.schema,
+        model_version=model.version,
+        files=hashes,
+        row_counts=counts,
+    )
+    write_stamp(paths.build_stamp, stamp)
+    return RebuildResult(stamp=stamp, loaded=loaded, upserted=upserted, warnings=unused_csv_files(paths, model))
+
+
+def rendered_ddl(paths: Paths, model: Model, dialect: Dialect) -> str:
+    """build/<model>.sql, refused when it no longer matches the YAML."""
+    actual = paths.ddl.read_text(encoding="utf-8") if paths.ddl.is_file() else None
+    if actual != schema_sql(model, dialect):
+        raise BuildError(f"{relative(paths, paths.ddl)} does not match {relative(paths, paths.model)}; run ./bench model render first")
+    return actual
+
+
+def load_schema(
+    conn: psycopg.Connection,
+    paths: Paths,
+    profile: DbProfile,
+    dialect: Dialect,
+    model: Model,
+    ddl: str,
+    extra: str,
+    verbose: bool,
+) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+    """Everything inside the rebuild transaction. Returns loaded data rows, upserted sample rows, final row counts."""
+    schema = model.schema
+    order = generation_order(model)
+    run_statements(conn, "session setup", [dialect.lock_timeout_sql(LOCK_TIMEOUT_SECONDS), dialect.terminate_other_sessions_sql()], verbose)
+    recreate = [
+        dialect.drop_schema_sql(schema),
+        dialect.create_schema_sql(schema),
+        dialect.grant_schema_usage_sql(schema, profile.read_user),
+        dialect.search_path_sql(schema, local=True),
+    ]
+    run_statements(conn, f"recreate schema {schema}", recreate, verbose)
+    run_statements(conn, relative(paths, paths.ddl), dialect.split_statements(ddl), verbose)
+    if extra.strip():
+        run_statements(conn, relative(paths, paths.extra_sql), dialect.split_statements(extra), verbose)
+    loaded = load_csv_files(conn, paths, model, order, paths.data, dialect.load_csv, verbose)
+    upserted = load_csv_files(conn, paths, model, order, paths.samples, dialect.upsert_csv, verbose)
+    run_checks(conn, paths, dialect, verbose)
+    counts = {name: execute(conn, dialect.count_rows_sql(schema, name), verbose=verbose).fetchone()[0] for name in order}
+    return loaded, upserted, counts
+
+
+def run_statements(conn: psycopg.Connection, step: str, statements: list[str], verbose: bool) -> None:
+    for statement in statements:
+        try:
+            execute(conn, statement, verbose=verbose)
+        except psycopg.Error as exc:
+            raise BuildError(f"{step}: {str(exc).strip()}", [f"statement: {statement.strip()}"]) from exc
+
+
+def load_csv_files(
+    conn: psycopg.Connection,
+    paths: Paths,
+    model: Model,
+    order: list[str],
+    directory: Path,
+    loader: Callable[[Any, str, Table, Path, bool], int],
+    verbose: bool,
+) -> dict[str, int]:
+    counts = {}
+    for name in order:
+        path = directory / f"{name}.csv"
+        if not path.is_file():
+            continue
+        try:
+            counts[name] = loader(conn, model.schema, model.tables[name], path, verbose)
+        except (psycopg.Error, ValueError) as exc:
+            raise BuildError(f"loading {relative(paths, path)}: {str(exc).strip()}") from exc
+    return counts
+
+
+def run_checks(conn: psycopg.Connection, paths: Paths, dialect: Dialect, verbose: bool) -> None:
+    """Run checks/generated/structural.sql if present; every statement must return no rows."""
+    path = paths.checks / CHECKS_FILE
+    if not path.is_file():
+        return
+    for statement in dialect.split_statements(path.read_text(encoding="utf-8")):
+        try:
+            rows = execute(conn, statement, verbose=verbose).fetchmany(FAILING_ROWS_SHOWN)
+        except psycopg.Error as exc:
+            raise BuildError(f"structural check could not run: {str(exc).strip()}", [statement]) from exc
+        if rows:
+            raise BuildError("structural check failed", [statement, *(str(row) for row in rows)])
+
+
+def unused_csv_files(paths: Paths, model: Model) -> list[str]:
+    files = [*sorted(paths.data.glob("*.csv")), *sorted(paths.samples.glob("*.csv"))]
+    return [f"{relative(paths, path)} matches no table in the model, not loaded" for path in files if path.stem not in model.tables]

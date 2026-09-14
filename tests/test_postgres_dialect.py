@@ -59,6 +59,16 @@ class DdlTest(unittest.TestCase):
         self.assertEqual(DIALECT.create_schema_sql("mybank"), "CREATE SCHEMA mybank;")
         self.assertEqual(DIALECT.drop_schema_sql("mybank"), "DROP SCHEMA IF EXISTS mybank CASCADE;")
         self.assertEqual(DIALECT.qualified("mybank", "TXN"), "mybank.TXN")
+        self.assertEqual(DIALECT.grant_schema_usage_sql("mybank", "bench_read"), "GRANT USAGE ON SCHEMA mybank TO bench_read")
+        self.assertEqual(DIALECT.search_path_sql("mybank", local=True), "SET LOCAL search_path TO mybank")
+        self.assertEqual(DIALECT.search_path_sql("mybank", local=False), "SET search_path TO mybank")
+        self.assertEqual(DIALECT.lock_timeout_sql(10), "SET lock_timeout = '10s'")
+        self.assertEqual(DIALECT.count_rows_sql("mybank", "TXN"), "SELECT count(*) FROM mybank.TXN")
+
+    def test_split_statements(self) -> None:
+        script = "-- c\nCREATE TABLE a (x text DEFAULT ';');\n\nCREATE FUNCTION f() RETURNS int AS $$ SELECT 1; $$ LANGUAGE sql;\n"
+        self.assertEqual(len(DIALECT.split_statements(script)), 2)
+        self.assertEqual(DIALECT.split_statements("  \n"), [])
 
 
 if __name__ == "__main__":

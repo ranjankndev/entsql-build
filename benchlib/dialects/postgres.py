@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pglast
 from pglast.keywords import RESERVED_KEYWORDS, TYPE_FUNC_NAME_KEYWORDS
 
 from benchlib.db import execute
@@ -45,6 +46,28 @@ class PostgresDialect:
 
     def type_map(self, pg_type: str) -> str:
         return pg_type
+
+    def split_statements(self, sql: str) -> list[str]:
+        """Split a script into statements with the PostgreSQL parser, so $$ bodies and ; in strings are safe."""
+        return list(pglast.split(sql)) if sql.strip() else []
+
+    def lock_timeout_sql(self, seconds: int) -> str:
+        return f"SET lock_timeout = '{int(seconds)}s'"
+
+    def terminate_other_sessions_sql(self) -> str:
+        return (
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE usename = current_user AND datname = current_database() AND pid <> pg_backend_pid()"
+        )
+
+    def grant_schema_usage_sql(self, schema: str, role: str) -> str:
+        return f"GRANT USAGE ON SCHEMA {self.quote(schema)} TO {self.quote(role)}"
+
+    def search_path_sql(self, schema: str, local: bool) -> str:
+        return f"SET {'LOCAL ' if local else ''}search_path TO {self.quote(schema)}"
+
+    def count_rows_sql(self, schema: str, table: str) -> str:
+        return f"SELECT count(*) FROM {self.qualified(schema, table)}"
 
     def table_ddl(self, table: Table, relations: list[Relation]) -> str:
         """CREATE TABLE with primary key, NOT NULL, DEFAULT and CHECK. PostgreSQL adds foreign keys with fk_ddl."""
