@@ -239,7 +239,26 @@ The probes are what Container Apps uses for liveness/readiness.
 
 ---
 
-## 9. Deployment — `deploy/azure/`
+## 9. Rate limits — `src/starter/ratelimit.py`
+
+**What** Per-identity token bucket (rate + burst) plus fixed-window daily
+request and token quotas. Framework-free; the API is a thin adapter.
+
+**Standalone**
+
+```python
+from starter.ratelimit import RateLimited, RateLimiter
+
+limits = RateLimiter(requests_per_minute=30, burst=5, tokens_per_day=200_000)
+limits.enforce(identity)                      # raises RateLimited
+limits.record_usage(identity, tokens_used)    # charged to the next check
+```
+
+**Extend** — implement `QuotaStore` (`incr`, `get`, `reset`) against Redis or
+Cosmos DB; the in-memory default is per replica. Details and the reasoning in
+[`docs/limits.md`](limits.md).
+
+## 10. Deployment — `deploy/azure/`
 
 Bicep for Container Apps + Azure OpenAI + Cosmos DB + Key Vault + managed
 identity + Log Analytics, deploy scripts, and the full guide in

@@ -68,5 +68,6 @@ class AgentEvent:
                 "tool_calls": state.get("tool_calls_made"),
                 "blocked": bool(state.get("blocked")),
                 "citations": state.get("citations", []),
+                "usage": state.get("usage", {}),
             },
         )

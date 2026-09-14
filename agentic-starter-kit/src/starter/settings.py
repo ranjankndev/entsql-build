@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     # `guard_output` runs cannot be unsent. See `agent/events.py`.
     agent_stream_tokens: bool = False
 
+    # Rate limits and quotas (see `starter/ratelimit.py`)
+    rate_limit_enabled: bool = True
+    rate_limit_rpm: float = 60.0
+    rate_limit_burst: float = 10.0
+    quota_requests_per_day: int = 0  # 0 disables
+    quota_tokens_per_day: int = 0  # 0 disables
+
     # Service
     app_env: str = "local"
     log_level: str = "INFO"
