@@ -74,7 +74,7 @@ tables:
     columns:
       - {name: CUST_ID,   type: integer,        pk: true}
       - {name: CUST_NM,   type: varchar(80),    nullable: false, description: legal name}
-      - {name: SEG_CD,    type: char(2),        description: segment code, see SEG_LKP}
+      - {name: SEG_CD,    type: char(2),        description: "segment code, see SEG_LKP"}
       - {name: OPEN_DT,   type: date}
       - {name: STAT_CD,   type: char(1),        default: "'A'", check: "STAT_CD IN ('A','C','S')"}
     rows: 2000
@@ -88,10 +88,14 @@ relations:
   - {from: CUST_MSTR.SEG_CD, to: SEG_LKP.SEG_CD, declared: false, kind: lookup}
   - {from: ACCT.CUST_ID,     to: CUST_MSTR.CUST_ID, declared: true, kind: parent}
   - {from: TXN.ACCT_ID,      to: ACCT.ACCT_ID,      declared: false, kind: parent,
-     note: dropped FK on purpose, ERP style}
+     note: "dropped FK on purpose, ERP style"}
 ```
 
 Rules:
+- Identifiers are emitted unquoted, so PostgreSQL folds them to lower case in the
+  catalog. Gold SQL is then written without quotes, which is what a text-to-SQL
+  model produces. The upper-case spelling in the YAML is the documentation form.
+- Any value containing a comma, colon or `#` must be quoted in the YAML.
 - `type` is a raw PostgreSQL type string. `check` and `default` are raw SQL.
 - Composite PK: list `pk: true` on each column; order is column order.
 - `relations` is the only place joins are defined. `declared: true` emits a
@@ -115,7 +119,7 @@ Rules:
 | `model import <file.sql>` | Parse DDL with `pglast` into `model/mybank.yaml` (tables, columns, PK, declared FKs as `declared: true` relations). One-time bootstrap. |
 | `model render` | Validate YAML; write `build/mybank.sql` and `build/mybank.svg`. Exit non-zero on validation errors (unknown ref, duplicate column, relation column missing). |
 | `model commit -m "msg"` | `render`, bump `version`, copy YAML and SQL to `versions/`, append CHANGELOG line with added/removed tables and columns vs previous version, `git commit`. |
-| `rebuild [--no-generate]` | Run `gen` unless disabled, then ONE transaction: `DROP SCHEMA mybank CASCADE; CREATE SCHEMA; GRANT USAGE ON SCHEMA mybank TO bench_read; run build/mybank.sql; run model/extra.sql; COPY data/*.csv in generation order; upsert model/samples/*.csv on PK; run checks/generated/structural.sql (each statement must return 0 rows); COMMIT`. On any error roll back. Write `build/.build.json` (hashes of yaml, extra.sql, samples, data, timestamp, row counts). `lock_timeout` 10s; terminate other `bench_owner` sessions first. |
+| `rebuild [--no-generate]` | Run `gen` unless disabled, then ONE transaction: `DROP SCHEMA mybank CASCADE; CREATE SCHEMA; GRANT USAGE ON SCHEMA mybank TO bench_read; run build/mybank.sql; run model/extra.sql; per table in generation order, COPY its data/<TABLE>.csv then upsert its model/samples/<TABLE>.csv on PK (parents complete before children, so a declared FK to a table whose rows exist only as samples still resolves); run checks/generated/structural.sql (each statement must return 0 rows); COMMIT`. On any error roll back. Write `build/.build.json` (hashes of yaml, extra.sql, samples, data, timestamp, row counts). `lock_timeout` 10s; terminate other `bench_owner` sessions first. |
 | `status` | Compare current file hashes with `.build.json`; print OK or STALE with changed files. |
 | `samples fill <TABLE> "<instruction>" [-n 5]` | Call LLM with table definition, relations, existing sample rows, up to 20 parent key values per ref, and the instruction; receive rows as structured JSON; validate columns, types, PK uniqueness, ref existence; append to `model/samples/<TABLE>.csv`. |
 | `gen [TABLE ...]` | Deterministic generation from `generation` specs, seed from YAML, parents first, writes `data/<TABLE>.csv`. Prints row counts and time. |
