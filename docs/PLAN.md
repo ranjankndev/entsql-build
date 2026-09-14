@@ -18,8 +18,8 @@ regression runner, SQLite export, VPS deployment, LLM plausibility review.
 
 | Piece | Choice |
 |---|---|
-| OS | Windows 11. Toolchain runs inside WSL2 (Ubuntu). Same scripts later run unchanged on the Linux VPS. |
-| Database | PostgreSQL 16 in Docker Desktop (WSL2 backend). `docker/compose.yaml`, port bound to `127.0.0.1:5432`. Roles from `docker/init/01-roles.sql`: `postgres`, `bench_owner`, `bench_read`. |
+| OS | Linux VPS (netcup, Ubuntu). Claude Code, the CLI and the Streamlit app all run on the VPS as user `benchbot`. The Windows laptop is a browser, VS Code Remote-SSH and DBeaver over SSH tunnels. |
+| Database | PostgreSQL 15.8 in the existing container `app_postgres` (`~/stacks/postgres`, managed by the human, outside this repo), port bound to `127.0.0.1:5432`. This project uses its own database `benchdata` and roles `bench_owner`, `bench_read`, created once by the human with `docker/init/01-roles.sql`. The repo never starts, stops or execs into the container. |
 | Python | 3.12 in a venv inside WSL2. Packages: `psycopg[binary]`, `pyyaml`, `pglast`, `graphviz`, `faker`, `streamlit`, `anthropic`, `pandas`. System package: `graphviz` (`apt install graphviz`). |
 | Editors | VS Code with Remote-WSL, Claude Code in the integrated terminal. DBeaver on Windows connects to `localhost:5432`. |
 | LLM | Optional. Pluggable provider (section 8): any OpenAI-compatible endpoint (OpenRouter, DeepSeek, Groq, Mistral, vLLM, llama.cpp, Ollama), local Ollama native API, or Anthropic. Keys live in `.env`, never in the shell profile. With no `[llm.*]` profile configured the app runs; LLM buttons are simply disabled. |
@@ -37,7 +37,7 @@ text2sql-benchmark/
 ├── CLAUDE.md
 ├── docs/PLAN.md                 # this file
 ├── bench.toml                   # DSNs, paths, seed
-├── docker/compose.yaml, init/01-roles.sql
+├── docker/init/01-roles.sql     # run once by the human; README.md explains the external container
 ├── model/
 │   ├── mybank.yaml              # SOURCE OF TRUTH for the schema
 │   ├── extra.sql                # optional views/functions, appended verbatim
@@ -147,7 +147,7 @@ Run one prompt per session step. After each, run the acceptance command
 yourself before moving on.
 
 **P0 Scaffold**
-> Read docs/PLAN.md and CLAUDE.md. Create the repository layout from section 2, `bench.toml` with the `[db.local]`, `[db.vps]` and `[llm.*]` profiles from section 8, `benchlib/config.py` (loads bench.toml, reads a `.env` file at the repo root into the process environment if present with a ten-line stdlib reader, selects profiles from `BENCH_DB` and `BENCH_LLM` env vars with defaults `local` and `none`), `benchlib/db.py` (connections for the owner and read roles of the selected profile using ~/.pgpass), `tools/bench.py` with argparse subcommands from section 4 as stubs, a `./bench` wrapper, `requirements.txt`, and `docker/compose.yaml` plus `docker/init/01-roles.sql` for PostgreSQL 16 bound to 127.0.0.1:5432 with roles postgres, bench_owner (owner of database benchdata) and bench_read (read-only). Add a README with the WSL2 setup steps.
+> Read docs/PLAN.md and CLAUDE.md. Create the repository layout from section 2, `bench.toml` with the `[db.local]`, `[db.vps]` and `[llm.*]` profiles from section 8, `benchlib/config.py` (loads bench.toml, reads a `.env` file at the repo root into the process environment if present with a ten-line stdlib reader, selects profiles from `BENCH_DB` and `BENCH_LLM` env vars with defaults `local` and `none`), `benchlib/db.py` (connections for the owner and read roles of the selected profile using ~/.pgpass), `tools/bench.py` with argparse subcommands from section 4 as stubs, a `./bench` wrapper, `requirements.txt`, and `docker/init/01-roles.sql` (creates database benchdata, roles bench_owner as its owner and bench_read as read-only with default privileges; idempotent) plus `docker/README.md` stating that PostgreSQL runs in the externally managed container `app_postgres` and that the SQL file is applied once by the human. Do not write a compose file. Add a README with the VPS setup steps for user benchbot.
 
 **P1 Model core**
 > Implement `benchlib/model.py` (load, validate, save the YAML from PLAN section 3, dataclasses for Table, Column, Relation), `benchlib/dialects/base.py` (the `Dialect` interface from section 8) and `benchlib/dialects/postgres.py` (YAML to PostgreSQL DDL: CREATE TABLE with PK, NOT NULL, DEFAULT, CHECK, then FOREIGN KEY constraints only for declared relations, then COMMENT ON for descriptions; plus `load_csv` using COPY), `benchlib/diagram.py` (Graphviz SVG: record node per table, solid edges declared, dashed undeclared, label = kind), and `benchlib/importer.py` (pglast-based DDL import to YAML). Wire `bench model import|render|commit`. Include unit tests that round-trip a small DDL through import and emit.
@@ -173,7 +173,7 @@ yourself before moving on.
 
 | Step | Check |
 |---|---|
-| P0 | `docker compose up -d` then `./bench status` prints "no build yet" without error. `psql -h 127.0.0.1 -U bench_owner benchdata -c 'select 1'` works. |
+| P0 | `./bench status` prints "no build yet" without error. `psql -h 127.0.0.1 -U bench_owner benchdata -c 'select 1'` works. |
 | P1 | `./bench model import mybank.sql` then `./bench model render` produces DDL that `psql` accepts into an empty scratch schema, and the SVG opens. `./bench model commit -m init` creates `versions/mybank_v001.*`. |
 | P2 | `./bench rebuild --no-generate` succeeds with empty data; a deliberate typo in a CHECK leaves the previous schema intact. `./bench status` reports STALE after editing the YAML. |
 | P3 | Add a table and an undeclared relation in the UI, Save, Render; the diagram shows a dashed edge; `./bench rebuild --no-generate` creates the table. |
