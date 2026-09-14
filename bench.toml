@@ -1,0 +1,48 @@
+# Workbench configuration. Profiles are selected with BENCH_DB / BENCH_LLM
+# or --db / --llm. Passwords come from ~/.pgpass, API keys from .env.
+# The generation seed lives in model/mybank.yaml, not here.
+
+[paths]
+model = "model/mybank.yaml"
+extra_sql = "model/extra.sql"
+samples = "model/samples"
+build = "build"
+versions = "versions"
+data = "data"
+checks = "checks/generated"
+llm_logs = "logs/llm"
+
+[db.local]
+dialect = "postgres"
+host = "127.0.0.1"
+port = 5432
+dbname = "benchdata"
+owner_user = "bench_owner"
+read_user = "bench_read"
+
+[db.vps]                      # reached through an SSH tunnel on the laptop, or directly on the VPS
+dialect = "postgres"
+host = "127.0.0.1"
+port = 5433
+dbname = "benchdata"
+owner_user = "bench_owner"
+read_user = "bench_read"
+
+[llm.none]                    # default: app runs, LLM features hidden
+provider = "none"
+
+[llm.openrouter]              # any OpenAI-compatible endpoint; add more profiles the same way
+provider = "openai_compat"
+base_url = "https://openrouter.ai/api/v1"
+model = "deepseek/deepseek-chat"
+api_key_env = "OPENROUTER_API_KEY"
+
+[llm.ollama]                  # local, free, slow on CPU
+provider = "ollama"
+base_url = "http://127.0.0.1:11434"
+model = "llama3.1:8b"
+
+[llm.anthropic]
+provider = "anthropic"
+model = "claude-opus-5"
+api_key_env = "ANTHROPIC_API_KEY"

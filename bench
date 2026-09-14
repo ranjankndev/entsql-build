@@ -1,0 +1,7 @@
+#!/bin/sh
+# Run the bench CLI with the repo venv (system python3 if the venv is missing).
+set -e
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+PY="$ROOT/.venv/bin/python"
+[ -x "$PY" ] || PY=python3
+PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" exec "$PY" -m tools.bench "$@"
