@@ -2,7 +2,10 @@ psycopg[binary]>=3.2
 pyyaml>=6.0
 pglast>=7.0
 graphviz>=0.20
-faker==40.39.0  # pinned: generated data is only byte-identical with the same Faker release
+# faker is pinned deliberately: a different Faker release changes the generated
+# values, so data/*.csv would no longer be byte-identical from model/mybank.yaml.
+# Do not upgrade it without regenerating and accepting new data.
+faker==40.39.0
 streamlit>=1.40
 pandas>=2.2
 # Optional, only for the [llm.anthropic] profile:
