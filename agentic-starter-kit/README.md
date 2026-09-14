@@ -74,7 +74,7 @@ cp .env.example .env
 | **Observability** | `src/starter/observability/` | One `Tracer` interface; Langfuse or structured JSON logs. Eval scores attach to the same trace. |
 | **Agent loop** | `src/starter/agent/` | Bounded think→act→reflect loop, in plain Python *and* as a LangGraph graph sharing the same nodes. Streams progress events; the answer is only emitted after the output guards pass. |
 | **Tools** | `src/starter/tools/` | Typed tools with a `risk` level and an approval gate. Placeholder tools included. |
-| **LLM seam** | `src/starter/llm/` | `echo`, OpenAI, Azure OpenAI, Anthropic behind one interface. |
+| **LLM seam** | `src/starter/llm/` | `echo`, OpenAI, Azure OpenAI, Anthropic behind one interface, with retry/backoff, `Retry-After` and a circuit breaker. |
 | **API** | `src/starter/api/` | FastAPI `/chat`, `/chat/stream` (SSE), `/healthz`, `/readyz`, `/guardrails/check`. |
 | **Azure deploy** | `deploy/azure/` | Bicep for Container Apps + Azure OpenAI + Cosmos + Key Vault + identity, plus a full [deployment guide](deploy/azure/README.md). |
 | **CI/CD** | `.github/workflows/` | Tests + eval gates per PR; OIDC deploy with blue/green and smoke tests. |

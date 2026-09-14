@@ -31,6 +31,15 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str | None = None
 
+    # Resilience: retries with backoff, plus a circuit breaker that stops
+    # hammering an endpoint that is persistently failing.
+    llm_retry_enabled: bool = True
+    llm_max_attempts: int = 3
+    llm_retry_base_delay: float = 0.5
+    llm_retry_max_delay: float = 20.0
+    llm_breaker_threshold: int = 5
+    llm_breaker_reset_seconds: float = 30.0
+
     # Observability
     observability_provider: Literal["none", "langfuse"] = "none"
     langfuse_public_key: str | None = None

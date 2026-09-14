@@ -146,10 +146,12 @@ class LangChainProvider:
 
 
 def get_llm(settings: Settings | None = None) -> LLMProvider:
-    """Build the provider named by `LLM_PROVIDER`. Imports are lazy on purpose."""
+    """Build the provider named by `LLM_PROVIDER`, wrapped in the configured
+    retry/circuit-breaker policy. Imports are lazy on purpose."""
     s = settings or get_settings()
 
     if s.llm_provider == "echo":
+        # Deterministic and local: retries would only add indirection.
         return EchoProvider()
 
     if s.llm_provider == "openai":
@@ -162,7 +164,7 @@ def get_llm(settings: Settings | None = None) -> LLMProvider:
             api_key=s.openai_api_key,
             base_url=s.openai_base_url,
         )
-        return LangChainProvider(model, "openai")
+        return _resilient(LangChainProvider(model, "openai"), s)
 
     if s.llm_provider == "azure_openai":
         from langchain_openai import AzureChatOpenAI
@@ -175,7 +177,7 @@ def get_llm(settings: Settings | None = None) -> LLMProvider:
             temperature=s.llm_temperature,
             max_tokens=s.llm_max_tokens,
         )
-        return LangChainProvider(model, "azure_openai")
+        return _resilient(LangChainProvider(model, "azure_openai"), s)
 
     if s.llm_provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
@@ -186,6 +188,13 @@ def get_llm(settings: Settings | None = None) -> LLMProvider:
             max_tokens=s.llm_max_tokens,
             api_key=s.anthropic_api_key,
         )
-        return LangChainProvider(model, "anthropic")
+        return _resilient(LangChainProvider(model, "anthropic"), s)
 
     raise ValueError(f"unknown LLM provider: {s.llm_provider}")
+
+
+def _resilient(provider: LLMProvider, settings: Settings) -> LLMProvider:
+    # Imported here to keep `resilience` free to import `provider`.
+    from starter.llm.resilience import wrap_resilient
+
+    return wrap_resilient(provider, settings)

@@ -191,6 +191,28 @@ usually `requires_approval=True`.
 `echo` (offline, scriptable — the reason the test suite needs no keys),
 `openai`, `azure_openai`, `anthropic` (all via LangChain chat models).
 
+**Resilience** `ResilientProvider` wraps any provider with exponential backoff
++ full jitter, `Retry-After` support, and a circuit breaker; `get_llm` applies
+it automatically to the network-backed providers. Transient (429/5xx/timeout/
+connection) is retried, permanent (400/auth/content filter) never is, and after
+`LLM_BREAKER_THRESHOLD` consecutive failures the breaker opens and calls fail
+fast with `LLMUnavailable` until `LLM_BREAKER_RESET_SECONDS` elapses. Streaming
+is retried only before the first delta reaches the caller — after that, a retry
+would duplicate emitted text.
+
+```python
+from starter.llm import CircuitBreaker, ResilientProvider, RetryPolicy
+
+provider = ResilientProvider(
+    inner=my_provider,
+    policy=RetryPolicy(max_attempts=4, base_delay=0.5, max_delay=20),
+    breaker=CircuitBreaker(failure_threshold=5, reset_seconds=30),
+)
+```
+
+`sleep` and `now` are injectable, which is why the tests assert the exact
+backoff curve without waiting for it.
+
 **Extend** — add a branch in `get_llm`, or pass any object with `.complete()`.
 `EchoProvider(scripted=[LLMResponse(...)])` is how the loop tests drive exact
 tool-call sequences.

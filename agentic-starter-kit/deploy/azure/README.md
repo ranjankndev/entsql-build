@@ -191,7 +191,7 @@ Alerts worth having on day one:
 | Loop exhaustion | `stop_reason == "max_iterations"` > 2% | the agent is thrashing; costs spike first |
 | Tool error rate | `ok == false` > 5% | a downstream dependency is down |
 | p95 latency | > 10 s | model throttling (429) or a slow tool |
-| OpenAI 429s | any sustained | raise PTU/capacity or add a retry budget |
+| OpenAI 429s | any sustained | raise PTU/capacity; the client already retries with backoff and opens a circuit breaker (`LLM_*` settings) |
 
 ---
 

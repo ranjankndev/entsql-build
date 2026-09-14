@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | `guard_input` | `agent/nodes.py` | runs INPUT guards over the user text | blocked → jump to `guard_output`, `stop_reason="blocked"` |
 | `load_context` | `agent/nodes.py` | builds the prompt from the three memory layers | — |
-| `think` | `agent/nodes.py` | one model call: tool request or final answer | provider exception → `stop_reason="error"`, caller still gets a reply |
+| `think` | `agent/nodes.py` | one model call: tool request or final answer | transient failures are retried with backoff in the LLM seam; an open circuit or a permanent error → `stop_reason="error"`, caller still gets a reply |
 | `act` | `agent/nodes.py` | guards each call, runs the tool, guards the result | tool exception becomes an observation, loop continues |
 | `reflect` | `agent/nodes.py` | optional self-check; may reopen the loop | off by default (`--reflect` to enable) |
 | `guard_output` | `agent/nodes.py` | runs OUTPUT guards over the answer | blocked → policy message |
