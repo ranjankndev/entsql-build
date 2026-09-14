@@ -11,7 +11,7 @@ from pathlib import Path
 
 import psycopg
 
-from benchlib import diagram, gen
+from benchlib import checks, diagram, gen
 from benchlib.config import DbProfile, Paths
 from benchlib.db import connect_owner, execute
 from benchlib.dialects.base import Dialect
@@ -19,8 +19,6 @@ from benchlib.model import Model, ModelError, generation_order, load_model, vali
 
 NO_BUILD = "no build yet"
 LOCK_TIMEOUT_SECONDS = 10
-CHECKS_FILE = "structural.sql"
-FAILING_ROWS_SHOWN = 10
 
 
 class BuildError(Exception):
@@ -171,9 +169,10 @@ def rebuild(
         gen.generate(paths, model)
     extra = paths.extra_sql.read_text(encoding="utf-8") if paths.extra_sql.is_file() else ""
     hashes = file_hashes(paths)
+    structural_checks = checks.write_checks(paths, model, dialect)
     conn = connect_owner(profile)
     try:
-        loaded, upserted, counts = load_schema(conn, paths, profile, dialect, model, ddl, extra, verbose)
+        loaded, upserted, counts = load_schema(conn, paths, profile, dialect, model, ddl, extra, structural_checks, verbose)
         conn.commit()
     except BaseException:
         with contextlib.suppress(psycopg.Error):
@@ -209,6 +208,7 @@ def load_schema(
     model: Model,
     ddl: str,
     extra: str,
+    structural_checks: list[checks.Check],
     verbose: bool,
 ) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
     """Everything inside the rebuild transaction. Returns loaded data rows, upserted sample rows, final row counts."""
@@ -226,7 +226,7 @@ def load_schema(
     if extra.strip():
         run_statements(conn, relative(paths, paths.extra_sql), dialect.split_statements(extra), verbose)
     loaded, upserted = load_data_and_samples(conn, paths, model, dialect, order, verbose)
-    run_checks(conn, paths, dialect, verbose)
+    run_structural_checks(conn, structural_checks, verbose)
     counts = {name: execute(conn, dialect.count_rows_sql(schema, name), verbose=verbose).fetchone()[0] for name in order}
     return loaded, upserted, counts
 
@@ -266,18 +266,12 @@ def load_data_and_samples(
     return loaded, upserted
 
 
-def run_checks(conn: psycopg.Connection, paths: Paths, dialect: Dialect, verbose: bool) -> None:
-    """Run checks/generated/structural.sql if present; every statement must return no rows."""
-    path = paths.checks / CHECKS_FILE
-    if not path.is_file():
-        return
-    for statement in dialect.split_statements(path.read_text(encoding="utf-8")):
-        try:
-            rows = execute(conn, statement, verbose=verbose).fetchmany(FAILING_ROWS_SHOWN)
-        except psycopg.Error as exc:
-            raise BuildError(f"structural check could not run: {str(exc).strip()}", [statement]) from exc
-        if rows:
-            raise BuildError("structural check failed", [statement, *(str(row) for row in rows)])
+def run_structural_checks(conn: psycopg.Connection, structural_checks: list[checks.Check], verbose: bool) -> None:
+    """The same checks as ./bench check, inside the rebuild transaction; any failure rolls the rebuild back."""
+    failed = [result for result in checks.run_checks(conn, structural_checks, verbose) if not result.passed]
+    if failed:
+        details = [line for result in failed for line in checks.failure_lines(result)]
+        raise BuildError(f"{len(failed)} structural check(s) failed", details)
 
 
 def unused_csv_files(paths: Paths, model: Model) -> list[str]:

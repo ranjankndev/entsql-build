@@ -3,6 +3,12 @@
 Kept up to date while building P1-P6 unattended. Newest step last. Each item
 says what is blocked and what to do.
 
+Build state (2026-09-14): P0-P6 are built and committed locally, one commit per
+step plus the model commits v001 and v002. Every acceptance check in PLAN
+section 7 passed (output in docs/BUILD_LOG.md) except that P4 ran against a
+local stub endpoint instead of a real LLM (item 1) and P3 ran headless (item 5).
+The database holds the starter model, version 2, 520,017 rows, status OK.
+
 ## Open
 
 ### 1. P4 acceptance needs a real LLM provider

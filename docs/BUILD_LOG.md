@@ -291,3 +291,53 @@ $ ./bench status
 OK: built 2026-09-14T19:38:25+00:00 on db profile local, schema mybank, model version 2, 520017 rows in 7 tables
 exit=0
 ```
+
+## P6 Checks (2026-09-14)
+
+```
+$ BENCH_INTEGRATION=1 .venv/bin/python -m unittest -v tests.test_rebuild_integration
+test_bad_csv_rolls_back ... ok
+test_declared_foreign_key_to_sample_only_parent ... ok
+test_orphan_sample_fails_structural_checks ... ok
+test_rebuild_rollback_and_samples ... ok
+
+$ ./bench check
+37 of 37 checks passed as bench_read; checks written to checks/generated/structural.sql
+exit=0
+
+$ ./bench rebuild          (runs the same 37 checks inside the transaction)
+rebuilt schema mybank on db profile local: 520017 rows, model version 2, 5.0 s
+exit=0
+
+--- model/samples/TXN.csv with one hand-crafted row whose ACCT_ID 999 has no parent
+$ ./bench rebuild
+bench rebuild: 1 structural check(s) failed
+  FAIL orphan TXN.ACCT_ID -> ACCT.ACCT_ID: 1 rows
+    query: SELECT c.* FROM mybank.TXN AS c WHERE c.ACCT_ID IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mybank.ACCT AS p WHERE p.ACCT_ID = c.ACCT_ID)
+    txn_id    | acct_id | txn_dt     | txn_typ | txn_amt | desc_txt
+    ----------+---------+------------+---------+---------+--------------
+    900000001 | 999     | 2024-06-01 | DP      | 100.00  | Orphan sample
+exit=1
+
+$ ./bench sql "select count(*) as txn_rows, max(txn_id) as max_txn_id from txn"
+400000   | 400000        <- previous build intact
+$ ./bench status
+STALE: ... changed since that build: model/samples/TXN.csv (added)
+exit=1
+
+--- sample removed
+$ ./bench rebuild
+rebuilt schema mybank on db profile local: 520017 rows, model version 2, 5.1 s
+exit=0
+$ ./bench status
+OK: built 2026-09-14T19:41:54+00:00 on db profile local, schema mybank, model version 2, 520017 rows in 7 tables
+exit=0
+```
+
+Final checks after P6:
+```
+$ .venv/bin/python -m unittest
+Ran 101 tests  OK (skipped=4: the database integration tests, run separately above)
+$ .venv/bin/streamlit run app/Home.py --server.address 127.0.0.1 --server.port 18501 --server.headless true
+health: ok, home page HTTP 200 (stopped afterwards)
+```

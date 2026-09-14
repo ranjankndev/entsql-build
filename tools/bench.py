@@ -16,7 +16,7 @@ if sys.version_info < (3, 12):
 
 import psycopg
 
-from benchlib import build, gen, importer, samples, sqlrun, versioning
+from benchlib import build, checks, gen, importer, samples, sqlrun, versioning
 from benchlib.build import BuildError
 from benchlib.config import Config, ConfigError, load_config
 from benchlib.dialects import get_dialect
@@ -26,9 +26,7 @@ from benchlib.model import ModelError, load_model
 from benchlib.samples import SamplesError
 
 # Commands that are still stubs, with the PLAN step that implements them.
-PLANNED_STEP = {
-    "check": "P6",
-}
+PLANNED_STEP: dict[str, str] = {}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -151,6 +149,16 @@ def run_gen(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def run_checks_command(config: Config, args: argparse.Namespace) -> int:
+    report = checks.check_database(config.paths, config.db, verbose=args.verbose)
+    for result in report.failed:
+        print("\n".join(checks.failure_lines(result)))
+    passed = len(report.results) - len(report.failed)
+    written = display(config, config.paths.checks / checks.CHECKS_FILE)
+    print(f"{passed} of {len(report.results)} checks passed as {config.db.read_user}; checks written to {written}")
+    return 1 if report.failed else 0
+
+
 def run_sql(config: Config, args: argparse.Namespace) -> int:
     result = sqlrun.run_sql(config.paths, config.db, args.query, verbose=args.verbose)
     if result.columns:
@@ -189,6 +197,7 @@ HANDLERS: dict[str, Callable[[Config, argparse.Namespace], int]] = {
     "model commit": run_model_commit,
     "rebuild": run_rebuild,
     "gen": run_gen,
+    "check": run_checks_command,
     "sql": run_sql,
     "samples fill": run_samples_fill,
 }
@@ -208,10 +217,15 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         return handler(config, args)
-    except (ModelError, BuildError) as exc:
+    except ModelError as exc:
         print(f"bench {key}: {exc}", file=sys.stderr)
-        for line in getattr(exc, "errors", None) or getattr(exc, "details", None) or []:
-            print(f"  - {line}", file=sys.stderr)
+        for error in exc.errors:
+            print(f"  - {error}", file=sys.stderr)
+        return 1
+    except BuildError as exc:
+        print(f"bench {key}: {exc}", file=sys.stderr)
+        for line in exc.details:
+            print(f"  {line}", file=sys.stderr)
         return 1
     except (SamplesError, LLMError, GenError) as exc:
         print(f"bench {key}: {exc}", file=sys.stderr)

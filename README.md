@@ -1,8 +1,9 @@
 # Text-to-SQL benchmark workbench
 
 Design benchmark schemas in YAML, rebuild a PostgreSQL database from them,
-generate synthetic data and check it. See `docs/PLAN.md` for the plan and
-`CLAUDE.md` for the project rules.
+generate synthetic data and check it. See `docs/PLAN.md` for the plan,
+`CLAUDE.md` for the project rules, `docs/BUILD_LOG.md` for the acceptance runs
+of each step and `docs/PENDING.md` for open questions.
 
 ## VPS setup (user `deploy`)
 
@@ -51,9 +52,38 @@ Everything (Claude Code, the CLI, the Streamlit app) runs on the VPS as user
 6. Verify:
 
    ```sh
-   ./bench status                                          # prints "no build yet"
+   ./bench status
    psql -h 127.0.0.1 -U bench_owner benchdata -c 'select 1'
    ```
+
+## Everyday commands
+
+```sh
+./bench model render                 # validate model/mybank.yaml, write build/mybank.sql and .svg
+./bench rebuild                      # gen, then one transaction: schema, data, samples, checks
+./bench rebuild --no-generate        # same, with the CSVs already in data/
+./bench status                       # OK or STALE with the changed files (exit 1 when STALE)
+./bench gen [TABLE ...]              # deterministic data/<TABLE>.csv from the generation specs
+./bench check                        # structural checks as bench_read, failures with first rows
+./bench sql "select count(*) from txn"
+./bench model commit -m "message"    # bump version, snapshot into versions/, git commit
+./bench --llm openrouter samples fill CUST_MSTR "3 customers, one with a NULL segment" -n 3
+./bench model import some.sql        # one-time bootstrap of the YAML from DDL (--force to overwrite)
+```
+
+`--verbose` prints every SQL statement. After editing the YAML: `./bench model
+render`, then `./bench rebuild`.
+
+## The app
+
+```sh
+.venv/bin/streamlit run app/Home.py --server.address 127.0.0.1 --server.port 8501
+BENCH_LLM=openrouter .venv/bin/streamlit run app/Home.py ...   # with the LLM box on the Data page
+```
+
+Pages: Home (status, Render, Rebuild), Model (tables, columns, generation
+specs, relations, diagram, Save, Render, Commit), Data (sample rows, Ask LLM,
+generated preview), Generate (spec YAML, Generate), Checks, SQL.
 
 ## Profiles
 
@@ -73,5 +103,7 @@ Open the Streamlit app at `http://localhost:8501` and point DBeaver at
 ## Tests
 
 ```sh
-.venv/bin/python -m unittest
+.venv/bin/python -m unittest                                              # unit tests and page smoke tests
+BENCH_INTEGRATION=1 .venv/bin/python -m unittest tests.test_rebuild_integration   # against the database, throwaway schema
+PYTHONPATH=. .venv/bin/python tests/acceptance/p3_model_page.py           # P3 UI run; writes the YAML, git checkout afterwards
 ```

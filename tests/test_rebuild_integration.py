@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from benchlib.build import BuildError, build_status, rebuild, render
+from benchlib.checks import check_database
 from benchlib.config import load_config
 from benchlib.db import connect_owner
 from benchlib.dialects.postgres import PostgresDialect
@@ -72,6 +73,21 @@ class RebuildIntegrationTest(unittest.TestCase):
         (self.paths.data / "ACCT.csv").write_text("ACCT_ID,CUST_ID,BAL\n1,7,10.00\n", encoding="utf-8")
         result = rebuild(self.paths, self.profile, self.dialect, NOW, generate=False)
         self.assertEqual((result.upserted, result.loaded), ({"CUST_MSTR": 1}, {"ACCT": 1}))
+
+    def test_orphan_sample_fails_structural_checks(self) -> None:
+        self.write_model(SAMPLE_YAML)
+        (self.paths.samples / "SEG_LKP.csv").write_text("SEG_CD,SEG_DESC\nRE,Retail\n", encoding="utf-8")
+        (self.paths.samples / "CUST_MSTR.csv").write_text("CUST_ID,CUST_NM,SEG_CD\n1,Acme,RE\n", encoding="utf-8")
+        rebuild(self.paths, self.profile, self.dialect, NOW, generate=False)
+        self.assertTrue((self.paths.checks / "structural.sql").is_file())
+        self.assertEqual(check_database(self.paths, self.profile).failed, [])
+
+        (self.paths.samples / "CUST_MSTR.csv").write_text("CUST_ID,CUST_NM,SEG_CD\n1,Acme,RE\n2,Orphan,ZZ\n", encoding="utf-8")
+        with self.assertRaises(BuildError) as caught:
+            rebuild(self.paths, self.profile, self.dialect, NOW, generate=False)
+        self.assertEqual(str(caught.exception), "1 structural check(s) failed")
+        self.assertIn("FAIL orphan CUST_MSTR.SEG_CD -> SEG_LKP.SEG_CD: 1 rows", caught.exception.details)
+        self.assertEqual(run_sql(self.paths, self.profile, "select count(*) from cust_mstr").rows, [(1,)])
 
     def test_bad_csv_rolls_back(self) -> None:
         self.write_model(SAMPLE_YAML)
