@@ -1,0 +1,70 @@
+schema: mybank
+version: 1
+seed: 20240901
+tables:
+  SEG_LKP:
+    description: Customer segment lookup
+    columns:
+      - {name: SEG_CD, type: char(2), pk: true}
+      - {name: SEG_DESC, type: varchar(40), nullable: false}
+    rows: 0
+  BRNCH:
+    description: Bank branches
+    columns:
+      - {name: BRNCH_ID, type: integer, pk: true}
+      - {name: BRNCH_NM, type: varchar(60), nullable: false}
+      - {name: CITY_NM, type: varchar(40)}
+      - {name: OPEN_DT, type: date}
+    rows: 0
+  PROD_LKP:
+    description: Account product lookup
+    columns:
+      - {name: PROD_CD, type: varchar(6), pk: true}
+      - {name: PROD_NM, type: varchar(60), nullable: false}
+      - {name: PROD_TYP, type: char(1), nullable: false, check: "prod_typ IN ('D', 'L', 'C')"}
+    rows: 0
+  CUST_MSTR:
+    description: Customer master, one row per customer
+    columns:
+      - {name: CUST_ID, type: integer, pk: true}
+      - {name: CUST_NM, type: varchar(80), nullable: false, description: Legal name}
+      - {name: SEG_CD, type: char(2), description: 'Segment code, see SEG_LKP (no foreign key)'}
+      - {name: OPEN_DT, type: date}
+      - {name: STAT_CD, type: char(1), default: "'A'", check: "stat_cd IN ('A', 'C', 'S')", description: 'A active, C closed, S suspended'}
+    rows: 0
+  ACCT:
+    description: Accounts, one customer owns many
+    columns:
+      - {name: ACCT_ID, type: bigint, pk: true}
+      - {name: CUST_ID, type: integer, nullable: false}
+      - {name: BRNCH_ID, type: integer, nullable: false}
+      - {name: PROD_CD, type: varchar(6), nullable: false, description: 'Product code, see PROD_LKP (no foreign key)'}
+      - {name: OPEN_DT, type: date, nullable: false}
+      - {name: CLOSE_DT, type: date}
+      - {name: CCY_CD, type: char(3), nullable: false, default: "'EUR'"}
+      - {name: CUR_BAL, type: 'numeric(14, 2)', nullable: false, default: '0', description: Current balance in account currency}
+    rows: 0
+  TXN:
+    description: Account transactions; ACCT_ID has no foreign key, ERP style
+    columns:
+      - {name: TXN_ID, type: bigint, pk: true}
+      - {name: ACCT_ID, type: bigint, nullable: false}
+      - {name: TXN_DT, type: date, nullable: false}
+      - {name: TXN_TYP, type: char(2), nullable: false, check: "txn_typ IN ('DP', 'WD', 'FE', 'IN', 'TR')", description: 'DP deposit, WD withdrawal, FE fee, IN interest, TR transfer'}
+      - {name: TXN_AMT, type: 'numeric(12, 2)', nullable: false}
+      - {name: DESC_TXT, type: varchar(120)}
+    rows: 0
+  ACCT_BAL_MTH:
+    description: Month-end balance per account
+    columns:
+      - {name: ACCT_ID, type: bigint, pk: true}
+      - {name: BAL_MTH, type: date, pk: true}
+      - {name: BAL_AMT, type: 'numeric(14, 2)', nullable: false}
+    rows: 0
+relations:
+  - {from: ACCT.CUST_ID, to: CUST_MSTR.CUST_ID, declared: true, kind: parent}
+  - {from: ACCT.BRNCH_ID, to: BRNCH.BRNCH_ID, declared: true, kind: parent}
+  - {from: ACCT_BAL_MTH.ACCT_ID, to: ACCT.ACCT_ID, declared: true, kind: parent}
+  - {from: CUST_MSTR.SEG_CD, to: SEG_LKP.SEG_CD, declared: false, kind: lookup}
+  - {from: ACCT.PROD_CD, to: PROD_LKP.PROD_CD, declared: false, kind: lookup}
+  - {from: TXN.ACCT_ID, to: ACCT.ACCT_ID, declared: false, kind: parent, note: 'dropped FK on purpose, ERP style'}
