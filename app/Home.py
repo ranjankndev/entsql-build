@@ -15,6 +15,7 @@ from benchlib import build
 from benchlib.build import BuildError
 from benchlib.config import load_config
 from benchlib.dialects import get_dialect
+from benchlib.gen import GenError
 from benchlib.model import ModelError, load_model
 
 st.set_page_config(page_title="Benchmark workbench", layout="wide")
@@ -51,7 +52,7 @@ if status.stamp:
     counts = pd.DataFrame(list(status.stamp.row_counts.items()), columns=["table", "rows"])
     st.dataframe(counts, hide_index=True)
 
-generate = st.checkbox("Generate data before rebuild", value=False)
+generate = st.checkbox("Generate data before rebuild", value=True)
 render_button, rebuild_button = st.columns(2)
 
 if render_button.button("Render"):
@@ -73,5 +74,7 @@ if rebuild_button.button("Rebuild", type="primary"):
         show_problem(str(exc), exc.errors)
     except BuildError as exc:
         show_problem(f"Rebuild rolled back: {exc}", exc.details)
+    except GenError as exc:
+        show_problem("Data generation failed, nothing was changed in the database", [str(exc)])
     except psycopg.Error as exc:
         show_problem("Database error", [str(exc).strip()])

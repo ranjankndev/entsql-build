@@ -6,18 +6,16 @@ import contextlib
 import datetime as dt
 import hashlib
 import json
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
 
 import psycopg
 
-from benchlib import diagram
+from benchlib import diagram, gen
 from benchlib.config import DbProfile, Paths
 from benchlib.db import connect_owner, execute
 from benchlib.dialects.base import Dialect
-from benchlib.model import Model, ModelError, Table, generation_order, load_model, validate_model
+from benchlib.model import Model, ModelError, generation_order, load_model, validate_model
 
 NO_BUILD = "no build yet"
 LOCK_TIMEOUT_SECONDS = 10
@@ -168,9 +166,9 @@ def rebuild(
     errors = validate_model(model)
     if errors:
         raise ModelError("model is invalid", errors)
-    if generate:
-        raise BuildError("data generation is implemented in P5; run rebuild with --no-generate")
     ddl = rendered_ddl(paths, model, dialect)
+    if generate:
+        gen.generate(paths, model)
     extra = paths.extra_sql.read_text(encoding="utf-8") if paths.extra_sql.is_file() else ""
     hashes = file_hashes(paths)
     conn = connect_owner(profile)
@@ -227,8 +225,7 @@ def load_schema(
     run_statements(conn, relative(paths, paths.ddl), dialect.split_statements(ddl), verbose)
     if extra.strip():
         run_statements(conn, relative(paths, paths.extra_sql), dialect.split_statements(extra), verbose)
-    loaded = load_csv_files(conn, paths, model, order, paths.data, dialect.load_csv, verbose)
-    upserted = load_csv_files(conn, paths, model, order, paths.samples, dialect.upsert_csv, verbose)
+    loaded, upserted = load_data_and_samples(conn, paths, model, dialect, order, verbose)
     run_checks(conn, paths, dialect, verbose)
     counts = {name: execute(conn, dialect.count_rows_sql(schema, name), verbose=verbose).fetchone()[0] for name in order}
     return loaded, upserted, counts
@@ -242,25 +239,31 @@ def run_statements(conn: psycopg.Connection, step: str, statements: list[str], v
             raise BuildError(f"{step}: {str(exc).strip()}", [f"statement: {statement.strip()}"]) from exc
 
 
-def load_csv_files(
+def load_data_and_samples(
     conn: psycopg.Connection,
     paths: Paths,
     model: Model,
+    dialect: Dialect,
     order: list[str],
-    directory: Path,
-    loader: Callable[[Any, str, Table, Path, bool], int],
     verbose: bool,
-) -> dict[str, int]:
-    counts = {}
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Table by table in generation order: COPY data/<T>.csv, then upsert model/samples/<T>.csv on the primary key.
+
+    Finishing each parent before its children lets a declared foreign key point at rows that exist only as samples.
+    """
+    loaded: dict[str, int] = {}
+    upserted: dict[str, int] = {}
     for name in order:
-        path = directory / f"{name}.csv"
-        if not path.is_file():
-            continue
-        try:
-            counts[name] = loader(conn, model.schema, model.tables[name], path, verbose)
-        except (psycopg.Error, ValueError) as exc:
-            raise BuildError(f"loading {relative(paths, path)}: {str(exc).strip()}") from exc
-    return counts
+        steps = ((paths.data, dialect.load_csv, loaded), (paths.samples, dialect.upsert_csv, upserted))
+        for directory, loader, counts in steps:
+            path = directory / f"{name}.csv"
+            if not path.is_file():
+                continue
+            try:
+                counts[name] = loader(conn, model.schema, model.tables[name], path, verbose)
+            except (psycopg.Error, ValueError) as exc:
+                raise BuildError(f"loading {relative(paths, path)}: {str(exc).strip()}") from exc
+    return loaded, upserted
 
 
 def run_checks(conn: psycopg.Connection, paths: Paths, dialect: Dialect, verbose: bool) -> None:

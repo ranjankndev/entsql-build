@@ -50,3 +50,17 @@ column row and a relation row in the editors, Save YAML, Render, then
 - Sample validation checks columns, types, lengths, NOT NULL, primary key
   uniqueness and parent keys. CHECK constraints are only enforced by the
   database, so a row violating a CHECK is saved and then fails the rebuild.
+
+### 7. Rebuild load order differs slightly from PLAN section 4 (decision to confirm)
+PLAN says: COPY all data/*.csv, then upsert all samples. That fails when a
+declared foreign key points at a table whose rows exist only as samples
+(ACCT.BRNCH_ID -> BRNCH in the starter model). Rebuild now goes table by table
+in generation order: COPY data/<T>.csv, then upsert model/samples/<T>.csv.
+Samples still override generated rows with the same primary key. If you prefer
+the literal order, lookup tables need generated rows instead of samples.
+
+### 8. data/*.csv is gitignored (decision to confirm)
+Generated CSVs are byte-identical from the YAML (TXN.csv is ~19 MB), so they
+are not committed. `faker` is pinned to 40.39.0 in requirements.txt because a
+different Faker release changes the generated names. Remove the .gitignore line
+if you want the dataset in git.

@@ -7,6 +7,7 @@ import datetime as dt
 import json
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -15,17 +16,17 @@ if sys.version_info < (3, 12):
 
 import psycopg
 
-from benchlib import build, importer, samples, sqlrun, versioning
+from benchlib import build, gen, importer, samples, sqlrun, versioning
 from benchlib.build import BuildError
 from benchlib.config import Config, ConfigError, load_config
 from benchlib.dialects import get_dialect
+from benchlib.gen import GenError
 from benchlib.llm.base import LLMError, get_provider
 from benchlib.model import ModelError, load_model
 from benchlib.samples import SamplesError
 
 # Commands that are still stubs, with the PLAN step that implements them.
 PLANNED_STEP = {
-    "gen": "P5",
     "check": "P6",
 }
 
@@ -58,8 +59,8 @@ def build_parser() -> argparse.ArgumentParser:
     fill.add_argument("instruction")
     fill.add_argument("-n", type=int, default=5, help="number of rows (default 5)")
 
-    gen = commands.add_parser("gen", help="generate data/<TABLE>.csv")
-    gen.add_argument("tables", nargs="*", metavar="TABLE")
+    gen_parser = commands.add_parser("gen", help="generate data/<TABLE>.csv (all tables when none are named)")
+    gen_parser.add_argument("tables", nargs="*", metavar="TABLE")
 
     commands.add_parser("check", help="run structural checks against the database")
 
@@ -114,6 +115,7 @@ def run_model_commit(config: Config, args: argparse.Namespace) -> int:
 
 
 def run_rebuild(config: Config, args: argparse.Namespace) -> int:
+    started = time.perf_counter()
     result = build.rebuild(
         config.paths,
         config.db,
@@ -130,7 +132,22 @@ def run_rebuild(config: Config, args: argparse.Namespace) -> int:
     ]
     print(sqlrun.format_table(["table", "data rows", "sample rows", "rows in db"], rows))
     stamp = result.stamp
-    print(f"rebuilt schema {stamp.schema} on db profile {stamp.db}: {sum(stamp.row_counts.values())} rows, model version {stamp.model_version}")
+    print(
+        f"rebuilt schema {stamp.schema} on db profile {stamp.db}: {sum(stamp.row_counts.values())} rows, "
+        f"model version {stamp.model_version}, {time.perf_counter() - started:.1f} s"
+    )
+    return 0
+
+
+def run_gen(config: Config, args: argparse.Namespace) -> int:
+    started = time.perf_counter()
+    result = gen.generate(config.paths, load_model(config.paths.model), args.tables or None)
+    elapsed = time.perf_counter() - started
+    rows = [(name, count, display(config, result.files[name]) if name in result.files else "-") for name, count in result.rows.items()]
+    print(sqlrun.format_table(["table", "rows", "file"], rows))
+    for path in result.removed:
+        print(f"removed {display(config, path)} (rows is 0)")
+    print(f"generated {sum(result.rows.values())} rows in {len(result.rows)} tables in {elapsed:.1f} s")
     return 0
 
 
@@ -171,6 +188,7 @@ HANDLERS: dict[str, Callable[[Config, argparse.Namespace], int]] = {
     "model render": run_model_render,
     "model commit": run_model_commit,
     "rebuild": run_rebuild,
+    "gen": run_gen,
     "sql": run_sql,
     "samples fill": run_samples_fill,
 }
@@ -195,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
         for line in getattr(exc, "errors", None) or getattr(exc, "details", None) or []:
             print(f"  - {line}", file=sys.stderr)
         return 1
-    except (SamplesError, LLMError) as exc:
+    except (SamplesError, LLMError, GenError) as exc:
         print(f"bench {key}: {exc}", file=sys.stderr)
         return 1
     except psycopg.Error as exc:

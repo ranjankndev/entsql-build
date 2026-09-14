@@ -6,7 +6,7 @@ from streamlit.testing.v1 import AppTest
 
 from benchlib.config import REPO_ROOT
 
-PAGES = ["app/Home.py", "app/pages/1_Model.py", "app/pages/2_Data.py"]
+PAGES = ["app/Home.py", "app/pages/1_Model.py", "app/pages/2_Data.py", "app/pages/3_Generate.py"]
 
 
 class PagesTest(unittest.TestCase):

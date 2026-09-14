@@ -66,6 +66,13 @@ class RebuildIntegrationTest(unittest.TestCase):
         self.assertEqual(names, [(3,)])
         self.assertEqual(build_status(self.paths).state, "stale")
 
+    def test_declared_foreign_key_to_sample_only_parent(self) -> None:
+        self.write_model(SAMPLE_YAML)
+        (self.paths.samples / "CUST_MSTR.csv").write_text("CUST_ID,CUST_NM\n7,Sample Customer\n", encoding="utf-8")
+        (self.paths.data / "ACCT.csv").write_text("ACCT_ID,CUST_ID,BAL\n1,7,10.00\n", encoding="utf-8")
+        result = rebuild(self.paths, self.profile, self.dialect, NOW, generate=False)
+        self.assertEqual((result.upserted, result.loaded), ({"CUST_MSTR": 1}, {"ACCT": 1}))
+
     def test_bad_csv_rolls_back(self) -> None:
         self.write_model(SAMPLE_YAML)
         (self.paths.data / "TXN.csv").write_text("TXN_ID,ACCT_ID,AMT\n1,1,not-a-number\n", encoding="utf-8")

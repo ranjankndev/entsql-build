@@ -2,7 +2,7 @@ psycopg[binary]>=3.2
 pyyaml>=6.0
 pglast>=7.0
 graphviz>=0.20
-faker>=30.0
+faker==40.39.0  # pinned: generated data is only byte-identical with the same Faker release
 streamlit>=1.40
 pandas>=2.2
 # Optional, only for the [llm.anthropic] profile:

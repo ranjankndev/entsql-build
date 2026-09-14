@@ -188,3 +188,106 @@ $ ./bench sql "select cust_id, cust_nm, seg_cd, stat_cd from cust_mstr order by 
 
 logs/llm: 2 files, each with request (url, body incl. response_format) and raw response.
 ```
+
+## P5 Generator (2026-09-14)
+
+Generation specs for the starter model: CUST_MSTR 20k, ACCT 40k, TXN 400k,
+ACCT_BAL_MTH 60k rows (520k); lookups stay sample-only (rows 0).
+
+```
+$ ./bench gen
+table        | rows   | file
+-------------+--------+----------------------
+SEG_LKP      | 0      | -
+BRNCH        | 0      | -
+PROD_LKP     | 0      | -
+CUST_MSTR    | 20000  | data/CUST_MSTR.csv
+ACCT         | 40000  | data/ACCT.csv
+TXN          | 400000 | data/TXN.csv
+ACCT_BAL_MTH | 60000  | data/ACCT_BAL_MTH.csv
+generated 520000 rows in 7 tables in 3.9 s
+exit=0
+$ sha256sum data/*.csv
+d41c58e240b454965c093f8228809bff2b6c8fe70cec6fbc813f05b10782ae2e  data/ACCT_BAL_MTH.csv
+65c1c0d7feaa17fa763e9a77bf56743116e0e687dfc78c9725f61e7735c43b35  data/ACCT.csv
+156d5a570b0b2bc45afe40eda38f5476683dbfdbb855e68ad46586973705d541  data/CUST_MSTR.csv
+224f70722c24859a0b65b373401fb85f6557bd92f416466b21fdb034ce012039  data/TXN.csv
+
+$ ./bench gen            (second run, 3.7 s)
+$ diff <(sha256sum after first gen) <(sha256sum after second gen)
+byte-identical: yes
+
+--- every relation: child values exist in the parent (data + samples)
+ACCT.CUST_ID         -> CUST_MSTR.CUST_ID declared=True  child values= 40000 distinct parents used= 8275 orphans=0
+ACCT.BRNCH_ID        -> BRNCH.BRNCH_ID    declared=True  child values= 40000 distinct parents used=    5 orphans=0
+ACCT_BAL_MTH.ACCT_ID -> ACCT.ACCT_ID      declared=True  child values= 60000 distinct parents used= 5000 orphans=0
+CUST_MSTR.SEG_CD     -> SEG_LKP.SEG_CD    declared=False child values= 18909 distinct parents used=    5 orphans=0
+ACCT.PROD_CD         -> PROD_LKP.PROD_CD  declared=False child values= 40000 distinct parents used=    7 orphans=0
+TXN.ACCT_ID          -> ACCT.ACCT_ID      declared=False child values=400000 distinct parents used=33005 orphans=0
+
+$ ./bench rebuild        (first attempt, before the fix below)
+bench rebuild: loading data/ACCT.csv: insert or update on table "acct" violates foreign key constraint "acct_brnch_id_fkey"
+DETAIL:  Key (brnch_id)=(2) is not present in table "brnch".
+exit=1   (rolled back; previous schema intact)
+```
+
+Fix: rebuild loaded all data before all samples, so a declared FK to a
+sample-only parent (ACCT.BRNCH_ID -> BRNCH) failed. Rebuild now loads table by
+table in generation order: data, then that table's samples (PENDING item 7).
+
+```
+$ BENCH_INTEGRATION=1 .venv/bin/python -m unittest tests.test_rebuild_integration
+test_bad_csv_rolls_back ... ok
+test_declared_foreign_key_to_sample_only_parent ... ok
+test_rebuild_rollback_and_samples ... ok
+
+$ ./bench rebuild
+SEG_LKP      | 0      | 5 | 5
+BRNCH        | 0      | 5 | 5
+PROD_LKP     | 0      | 7 | 7
+CUST_MSTR    | 20000  | 0 | 20000
+ACCT         | 40000  | 0 | 40000
+TXN          | 400000 | 0 | 400000
+ACCT_BAL_MTH | 60000  | 0 | 60000
+rebuilt schema mybank on db profile local: 520017 rows, model version 1, 4.9 s
+exit=0
+
+$ ./bench sql "select count(*) as txn_orphans from txn t where not exists (select 1 from acct a where a.acct_id = t.acct_id)"
+0
+$ ./bench sql "select txn_typ, count(*), min(txn_amt), max(txn_amt), count(desc_txt) as with_desc from txn group by txn_typ order by 1"
+DP | 140540 | 1.04     | 4999.98 | 137804
+FE | 40138  | -3000.00 | -1.00   | 39334
+IN | 19593  | 1.16     | 4999.69 | 19238
+TR | 60224  | -2999.97 | -1.08   | 59009
+WD | 139505 | -2999.98 | -1.00   | 136738
+$ ./bench sql "select acct_id, bal_mth, bal_amt from acct_bal_mth order by acct_id, bal_mth limit 3"
+100000001 | 2024-01-31 | 64175.47
+100000001 | 2024-02-29 | 113626.87
+100000001 | 2024-03-31 | -206.36
+```
+
+Model change versioned and rebuilt:
+```
+
+$ ./bench model commit -m starter generation specs, about 520k rows
+- v002 (2026-09-14) starter generation specs, about 520k rows; no table or column changes
+committed model v002: model/mybank.yaml, build/mybank.sql, build/mybank.svg, versions/mybank_v002.yaml, versions/mybank_v002.sql, versions/CHANGELOG.md
+exit=0
+
+$ ./bench rebuild
+table        | data rows | sample rows | rows in db
+-------------+-----------+-------------+-----------
+SEG_LKP      | 0         | 5           | 5
+BRNCH        | 0         | 5           | 5
+PROD_LKP     | 0         | 7           | 7
+CUST_MSTR    | 20000     | 0           | 20000
+ACCT         | 40000     | 0           | 40000
+TXN          | 400000    | 0           | 400000
+ACCT_BAL_MTH | 60000     | 0           | 60000
+rebuilt schema mybank on db profile local: 520017 rows, model version 2, 4.8 s
+exit=0
+
+$ ./bench status
+OK: built 2026-09-14T19:38:25+00:00 on db profile local, schema mybank, model version 2, 520017 rows in 7 tables
+exit=0
+```

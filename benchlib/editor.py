@@ -17,7 +17,9 @@ from benchlib.config import Paths
 from benchlib.model import (
     IDENTIFIER,
     Column,
+    FlowMap,
     Model,
+    ModelDumper,
     ModelError,
     Relation,
     Table,
@@ -281,6 +283,33 @@ def apply_edits(model: Model, table_name: str, edit: TableEdit, relation_rows: l
     table.description, table.rows = as_text(edit.description), int(edit.rows)
     updated.relations = relations
     return rename_table(updated, table_name, (edit.name or "").strip())
+
+
+def spec_yaml(table: Table) -> str:
+    """rows and generation of one table as YAML text for the Generate page."""
+    data = {"rows": table.rows, "generation": {column: FlowMap(spec) for column, spec in table.generation.items()}}
+    return yaml.dump(data, Dumper=ModelDumper, sort_keys=False, allow_unicode=True, width=1000)
+
+
+def apply_spec_yaml(model: Model, table_name: str, text: str) -> tuple[Model, list[str]]:
+    try:
+        data = yaml.load(text, Loader=UniqueKeyLoader)
+    except (yaml.YAMLError, ModelError) as exc:
+        return model, [f"{table_name}: spec is not valid YAML ({exc})"]
+    if not isinstance(data, dict) or not set(data) <= {"rows", "generation"}:
+        return model, [f"{table_name}: expected a mapping with rows: and generation:"]
+    rows, generation = data.get("rows", 0), data.get("generation") or {}
+    errors = []
+    if not isinstance(rows, int) or isinstance(rows, bool) or rows < 0:
+        errors.append(f"{table_name}: rows must be a non-negative integer")
+    if not isinstance(generation, dict) or not all(isinstance(spec, dict) for spec in generation.values()):
+        errors.append(f"{table_name}: generation must map each column to a spec such as {{seq: 1}}")
+    if errors:
+        return model, errors
+    updated = copy.deepcopy(model)
+    updated.tables[table_name].rows = rows
+    updated.tables[table_name].generation = {str(column): spec for column, spec in generation.items()}
+    return updated, []
 
 
 def save_checked(model: Model, paths: Paths) -> list[str]:

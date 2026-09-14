@@ -106,5 +106,20 @@ class TableOperationsTest(unittest.TestCase):
         self.assertEqual(errors, ["SEG_LKP column row 1: name and type are both required"])
 
 
+class SpecYamlTest(unittest.TestCase):
+    def test_round_trip_and_errors(self) -> None:
+        model = parse_model(SAMPLE_YAML)
+        text = editor.spec_yaml(model.table("CUST_MSTR"))
+        self.assertIn("rows: 20\ngeneration:\n  CUST_ID: {seq: 1}\n", text)
+        updated, errors = editor.apply_spec_yaml(model, "CUST_MSTR", text.replace("rows: 20", "rows: 99"))
+        self.assertEqual(errors, [])
+        self.assertEqual(updated.table("CUST_MSTR").rows, 99)
+        self.assertEqual(updated.table("CUST_MSTR").generation, model.table("CUST_MSTR").generation)
+        self.assertEqual(model.table("CUST_MSTR").rows, 20)
+        self.assertEqual(len(editor.apply_spec_yaml(model, "CUST_MSTR", "rows: -1")[1]), 1)
+        self.assertEqual(len(editor.apply_spec_yaml(model, "CUST_MSTR", "columns: []")[1]), 1)
+        self.assertEqual(len(editor.apply_spec_yaml(model, "CUST_MSTR", "rows: [")[1]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
