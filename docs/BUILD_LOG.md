@@ -106,3 +106,47 @@ $ BENCH_INTEGRATION=1 .venv/bin/python -m unittest tests.test_rebuild_integratio
 test_bad_csv_rolls_back ... ok
 test_rebuild_rollback_and_samples ... ok   (sample upsert on PK, rollback on CHECK typo, bench_read query)
 ```
+
+## P3 Model UI (2026-09-14)
+
+Driven through the real `app/pages/1_Model.py` with Streamlit AppTest
+(`tests/acceptance/p3_model_page.py`). AppTest has no data_editor element, so
+the column and relation rows were injected as data_editor widget state in the
+same rerun as the Save click, which is what the browser sends.
+
+```
+$ PYTHONPATH=. .venv/bin/python tests/acceptance/p3_model_page.py
+1 page loaded, tables: ['SEG_LKP', 'BRNCH', 'PROD_LKP', 'CUST_MSTR', 'ACCT', 'TXN', 'ACCT_BAL_MTH'] []
+2 after Add table: selected = ATM | caption: model/mybank.yaml · schema mybank · version 1 · **unsaved changes** []
+3 edits injected into the editors; the Save click runs in the same rerun, as the browser sends them
+4 after Save YAML: ['Saved mybank.yaml'] []
+5 after Render: ['Rendered the saved YAML to mybank.sql and mybank.svg'] []
+
+$ git diff model/mybank.yaml
++  ATM:
++    description: Cash machines, one row per ATM
++    columns:
++      - {name: ATM_ID, type: integer, pk: true}
++      - {name: BRNCH_ID, type: integer, nullable: false}
++      - {name: INSTALL_DT, type: date}
++    rows: 0
++  - {from: ATM.BRNCH_ID, to: BRNCH.BRNCH_ID, declared: false, kind: parent, note: 'no FK, ERP style'}
+
+diagram: ['ATM -> BRNCH [label=parent style=dashed]'], SVG edge ATM->BRNCH stroke-dasharray="5,2"
+
+$ ./bench rebuild --no-generate
+SEG_LKP 5 sample rows, BRNCH 5, PROD_LKP 7, ATM 0, ... rebuilt schema mybank on db profile local: 17 rows, model version 1
+exit=0
+
+$ ./bench sql "select column_name, data_type, is_nullable from information_schema.columns where table_schema = 'mybank' and table_name = 'atm' order by ordinal_position"
+atm_id      | integer | NO
+brnch_id    | integer | NO
+install_dt  | date    | YES
+(3 rows)
+```
+
+The demo ATM table was then reverted (`git checkout model/mybank.yaml build/`)
+so the starter model stays as committed in v001.
+First attempt note: injecting editor state in one rerun and clicking Save in a
+later rerun saved only the new table, because AppTest does not resend state
+for widgets it does not model. A browser resends it; see PENDING item 5.

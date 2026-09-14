@@ -30,3 +30,10 @@ the tool and are quoted correctly; only the doc example is affected.
 ### 4. Nothing pushed
 Each step is committed locally on `claude/text-to-sql-benchmark-setup-efzs2y`;
 nothing was pushed. Review, then `git push`.
+
+### 5. P3: click through the Model page once in a browser
+The UI acceptance ran headless (AppTest, editor edits injected as widget
+state). Please do one manual pass: `.venv/bin/streamlit run app/Home.py
+--server.address 127.0.0.1`, tunnel port 8501, open Model, add a table, add a
+column row and a relation row in the editors, Save YAML, Render, then
+`./bench rebuild --no-generate`. Revert with `git checkout model/mybank.yaml build/`.

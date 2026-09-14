@@ -1,0 +1,8 @@
+PROD_CD,PROD_NM,PROD_TYP
+CHK01,Everyday checking,D
+SAV01,Savings account,D
+TD12,12 month term deposit,D
+MTG30,30 year mortgage,L
+PLN05,Personal loan 5 years,L
+CC01,Classic credit card,C
+CC02,Gold credit card,C
