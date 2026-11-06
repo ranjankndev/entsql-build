@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="940" viewBox="0 0 1200 940" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="1200" height="940" fill="#ffffff"/>
+<style>
+.t{fill:#16202c}.m{fill:#5a6472}.h{font-weight:600}
+.bx{fill:#f7f8fa;stroke:#c8ccd4;stroke-width:1.5;rx:6}
+.bo{fill:#ffffff;stroke:#9aa4b2;stroke-width:2;rx:8}
+.bi{fill:#eef2f8;stroke:#9ab0cc;stroke-width:1.2;rx:5}
+.bd{fill:#eaf3ec;stroke:#86ab92;stroke-width:1.2;rx:5}
+.bg{fill:#f6eef4;stroke:#b394ab;stroke-width:1.2;rx:5}
+.ar{stroke:#6b7686;stroke-width:2;fill:none;marker-end:url(#a)}
+.ad{stroke:#6b7686;stroke-width:2;fill:none;stroke-dasharray:5 4;marker-end:url(#a)}
+</style>
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+<path d="M0,0 L8,3.2 L0,6.4 z" fill="#6b7686"/></marker></defs>
+
+<text x="24" y="34" class="t h" font-size="21">Text-to-SQL Benchmark Workbench</text>
+<text x="24" y="54" class="m" font-size="12.5">All the text in this diagram uses ASD-STE100 Simplified Technical English.</text>
+
+<text x="24" y="86" class="t h" font-size="15">Part 1. The system</text>
+
+<!-- laptop -->
+<rect x="24" y="98" width="258" height="300" class="bo"/>
+<text x="40" y="122" class="t h" font-size="14">Windows 11 laptop</text>
+<rect x="40" y="134" width="226" height="58" class="bi"/>
+<text x="52" y="153" class="t h" font-size="12.5">Web browser</text>
+<text x="52" y="171" class="m" font-size="11.5">It shows the workbench pages.</text>
+<rect x="40" y="200" width="226" height="58" class="bi"/>
+<text x="52" y="219" class="t h" font-size="12.5">VS Code (Remote-SSH)</text>
+<text x="52" y="237" class="m" font-size="11.5">It edits the project files.</text>
+<rect x="40" y="266" width="226" height="58" class="bi"/>
+<text x="52" y="285" class="t h" font-size="12.5">DBeaver</text>
+<text x="52" y="303" class="m" font-size="11.5">It reads the database tables.</text>
+<text x="40" y="350" class="m" font-size="11.5">The laptop keeps no project data.</text>
+<text x="40" y="368" class="m" font-size="11.5">You can close the laptop. The</text>
+<text x="40" y="384" class="m" font-size="11.5">server continues the work.</text>
+
+<!-- ssh -->
+<path d="M284,246 L378,246" class="ar"/>
+<text x="331" y="232" class="t h" font-size="11.5" text-anchor="middle">SSH tunnel</text>
+<text x="331" y="266" class="m" font-size="11" text-anchor="middle">ports 8501, 5432</text>
+
+<!-- vps -->
+<rect x="382" y="70" width="562" height="462" class="bo"/>
+<text x="398" y="94" class="t h" font-size="14">Debian 13 server (netcup VPS)</text>
+
+<rect x="398" y="106" width="530" height="230" class="bx"/>
+<text x="412" y="128" class="t h" font-size="12.5">User deploy &#8212; the tools</text>
+<rect x="412" y="138" width="248" height="76" class="bi"/>
+<text x="424" y="157" class="t h" font-size="12.5">Claude Code</text>
+<text x="424" y="175" class="m" font-size="11.5">It writes the code.</text>
+<text x="424" y="191" class="m" font-size="11.5">It runs the commands.</text>
+<rect x="668" y="138" width="248" height="76" class="bi"/>
+<text x="680" y="157" class="t h" font-size="12.5">bench CLI</text>
+<text x="680" y="175" class="m" font-size="11.5">One command does one task:</text>
+<text x="680" y="191" class="m" font-size="11.5">render, gen, rebuild, check, sql.</text>
+<rect x="412" y="224" width="248" height="76" class="bi"/>
+<text x="424" y="243" class="t h" font-size="12.5">Streamlit app</text>
+<text x="424" y="261" class="m" font-size="11.5">Five pages: Model, Data,</text>
+<text x="424" y="277" class="m" font-size="11.5">Generate, Checks, SQL.</text>
+<rect x="668" y="224" width="248" height="76" class="bi"/>
+<text x="680" y="243" class="t h" font-size="12.5">benchlib (Python)</text>
+<text x="680" y="261" class="m" font-size="11.5">All the logic is in this library.</text>
+<text x="680" y="277" class="m" font-size="11.5">The CLI and the app call it.</text>
+<text x="412" y="322" class="m" font-size="11">The app and the CLI use the same functions. They always agree.</text>
+
+<rect x="398" y="346" width="254" height="170" class="bx"/>
+<text x="412" y="368" class="t h" font-size="12.5">Project files (Git)</text>
+<text x="412" y="390" class="t" font-size="11.5">model/mybank.yaml</text>
+<text x="412" y="406" class="m" font-size="11">The only source of truth.</text>
+<text x="412" y="428" class="t" font-size="11.5">model/samples/*.csv</text>
+<text x="412" y="444" class="m" font-size="11">Your rows. They stay.</text>
+<text x="412" y="466" class="t" font-size="11.5">build/mybank.sql and .svg</text>
+<text x="412" y="482" class="m" font-size="11">Made files. Do not edit them.</text>
+<text x="412" y="504" class="m" font-size="11">data/*.csv: made rows, not in Git.</text>
+
+<rect x="668" y="346" width="260" height="170" class="bd"/>
+<text x="682" y="368" class="t h" font-size="12.5">Docker container app_postgres</text>
+<text x="682" y="390" class="t" font-size="11.5">PostgreSQL 18.4</text>
+<text x="682" y="412" class="t" font-size="11.5">benchdata &#8594; schema mybank</text>
+<text x="682" y="428" class="m" font-size="11">The workbench builds this schema.</text>
+<text x="682" y="450" class="t" font-size="11.5">benchmeta</text>
+<text x="682" y="466" class="m" font-size="11">For the questions. Phase 2 uses it.</text>
+<text x="682" y="490" class="m" font-size="11">The port is open to 127.0.0.1 only.</text>
+<text x="682" y="506" class="m" font-size="11">A person starts the container, not the code.</text>
+
+<path d="M652,430 L666,430" class="ar"/>
+
+<!-- github -->
+<rect x="974" y="98" width="202" height="112" class="bg"/>
+<text x="988" y="122" class="t h" font-size="13">GitHub</text>
+<text x="988" y="144" class="m" font-size="11.5">ranjankndev/entsql-build</text>
+<text x="988" y="166" class="m" font-size="11.5">It keeps the model, the code</text>
+<text x="988" y="182" class="m" font-size="11.5">and the version history.</text>
+<path d="M946,154 L970,154" class="ar"/>
+<path d="M970,186 L946,186" class="ar"/>
+
+<!-- llm -->
+<rect x="974" y="250" width="202" height="150" class="bg"/>
+<text x="988" y="274" class="t h" font-size="13">LLM provider (optional)</text>
+<text x="988" y="296" class="m" font-size="11.5">An OpenAI-compatible API,</text>
+<text x="988" y="312" class="m" font-size="11.5">a local Ollama model, or</text>
+<text x="988" y="328" class="m" font-size="11.5">the Anthropic API.</text>
+<text x="988" y="352" class="m" font-size="11.5">It writes sample rows for you.</text>
+<text x="988" y="374" class="m" font-size="11.5">The code tests each row before</text>
+<text x="988" y="390" class="m" font-size="11.5">it writes the row to a file.</text>
+<path d="M946,300 L970,300" class="ad"/>
+<text x="958" y="420" class="m" font-size="11" text-anchor="middle">The workbench</text>
+<text x="958" y="434" class="m" font-size="11" text-anchor="middle">also runs with</text>
+<text x="958" y="448" class="m" font-size="11" text-anchor="middle">no provider.</text>
+
+<!-- part 2 -->
+<line x1="24" y1="560" x2="1176" y2="560" stroke="#dde1e7" stroke-width="1"/>
+<text x="24" y="592" class="t h" font-size="15">Part 2. The daily loop</text>
+
+<rect x="24" y="606" width="178" height="152" class="bx"/>
+<text x="38" y="630" class="t h" font-size="12.5">1. Change the model</text>
+<text x="38" y="652" class="m" font-size="11.5">You add a table, a</text>
+<text x="38" y="668" class="m" font-size="11.5">column or a relation.</text>
+<text x="38" y="690" class="m" font-size="11.5">Use the Model page or</text>
+<text x="38" y="706" class="m" font-size="11.5">the text editor.</text>
+<text x="38" y="736" class="m" font-size="11">Only this step is manual.</text>
+<path d="M206,682 L214,682" class="ar"/>
+
+<rect x="218" y="606" width="178" height="152" class="bx"/>
+<text x="232" y="630" class="t h" font-size="12.5">2. Render</text>
+<text x="232" y="652" class="t" font-size="11.5">./bench model render</text>
+<text x="232" y="676" class="m" font-size="11.5">It tests the model file.</text>
+<text x="232" y="698" class="m" font-size="11.5">It writes the DDL file</text>
+<text x="232" y="714" class="m" font-size="11.5">and the diagram.</text>
+<path d="M400,682 L408,682" class="ar"/>
+
+<rect x="412" y="606" width="178" height="152" class="bx"/>
+<text x="426" y="630" class="t h" font-size="12.5">3. Generate</text>
+<text x="426" y="652" class="t" font-size="11.5">./bench gen</text>
+<text x="426" y="676" class="m" font-size="11.5">It makes the data files.</text>
+<text x="426" y="698" class="m" font-size="11.5">The seed keeps the rows</text>
+<text x="426" y="714" class="m" font-size="11.5">the same each time.</text>
+<text x="426" y="740" class="m" font-size="11">Parents come before children.</text>
+<path d="M594,682 L602,682" class="ar"/>
+
+<rect x="606" y="606" width="178" height="152" class="bx"/>
+<text x="620" y="630" class="t h" font-size="12.5">4. Rebuild</text>
+<text x="620" y="652" class="t" font-size="11.5">./bench rebuild</text>
+<text x="620" y="676" class="m" font-size="11.5">One transaction removes</text>
+<text x="620" y="692" class="m" font-size="11.5">the schema, makes it</text>
+<text x="620" y="708" class="m" font-size="11.5">again, and loads the rows.</text>
+<text x="620" y="740" class="m" font-size="11">Your sample rows go in last.</text>
+<path d="M788,682 L796,682" class="ar"/>
+
+<rect x="800" y="606" width="178" height="152" class="bx"/>
+<text x="814" y="630" class="t h" font-size="12.5">5. Check</text>
+<text x="814" y="652" class="t" font-size="11.5">./bench check</text>
+<text x="814" y="676" class="m" font-size="11.5">Each check must find</text>
+<text x="814" y="692" class="m" font-size="11.5">zero bad rows.</text>
+<text x="814" y="716" class="m" font-size="11.5">The rebuild also runs</text>
+<text x="814" y="732" class="m" font-size="11.5">these checks.</text>
+<path d="M982,682 L990,682" class="ar"/>
+
+<rect x="994" y="606" width="182" height="152" class="bx"/>
+<text x="1008" y="630" class="t h" font-size="12.5">6. Look at the result</text>
+<text x="1008" y="652" class="m" font-size="11.5">Read the diagram.</text>
+<text x="1008" y="674" class="m" font-size="11.5">Read the data grid.</text>
+<text x="1008" y="696" class="m" font-size="11.5">Run a query on the</text>
+<text x="1008" y="712" class="m" font-size="11.5">SQL page.</text>
+<text x="1008" y="740" class="m" font-size="11">Then start again at step 1.</text>
+
+<rect x="24" y="782" width="1152" height="128" class="bx"/>
+<text x="40" y="806" class="t h" font-size="13">The rules that keep the work safe</text>
+<text x="40" y="830" class="m" font-size="11.5">1. The file model/mybank.yaml is the only source of truth. The database is a copy. You can remove the database.</text>
+<text x="40" y="850" class="m" font-size="11.5">2. A rebuild is one transaction. If one step fails, the database keeps the data from the last good build.</text>
+<text x="40" y="870" class="m" font-size="11.5">3. Rows that you change in a database tool are lost at the next rebuild. Put special rows in model/samples/.</text>
+<text x="40" y="890" class="m" font-size="11.5">4. The code connects as the role bench_owner. The code never uses a docker command. A person does that work.</text>
+</svg>
